@@ -1217,8 +1217,9 @@ function showBatchSelectionModal(productId){
     }
   });
   document.getElementById('batchModalAdd').onclick=()=>{
-    addBatchToCart(product, batches.find(b=>b.id===selectedBatchId));
+    const batch=batches.find(b=>b.id===selectedBatchId);
     close();
+    showQuantityModal(product,batch);
   };
 }
 
@@ -1248,5 +1249,131 @@ function addBatchToCart(product,batch){
   }
   appState.selectedBatchId=batch.id;
   toast(`${product.name} • batch ${batch.batchNo} added to cart.`,'success');
+  render();
+}
+
+
+/* ============================================================================
+ POS QUANTITY POPUP
+ PURPOSE:
+ Prompts for sale quantity after the cashier selects a batch.
+ REFERENCE:
+ Quantity is limited by available batch stock and any quantity already present
+ in the cart for the same batch.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Opens a compact quantity selector with minus/plus controls and direct numeric input.
+ REFERENCE:
+ Confirm adds the requested quantity to the existing cart line or creates a new line.
+*/
+function showQuantityModal(product,batch){
+  if(!product||!batch)return;
+
+  const existing=appState.cart.find(x=>x.batchId===batch.id);
+  const alreadyInCart=Number(existing?.quantity||0);
+  const available=Math.max(0,Number(batch.quantity)-alreadyInCart);
+
+  if(available<=0){
+    toast('All available stock from this batch is already in the cart.','warning');
+    return;
+  }
+
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+    <div class="modal qty-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Enter Quantity</b>
+          <div class="muted">${esc(product.name)} • Batch ${esc(batch.batchNo)}</div>
+        </div>
+        <button class="close-btn" id="qtyModalClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="qty-stock-summary">
+          <div><span>Available</span><strong>${available}</strong></div>
+          <div><span>Expiry</span><strong>${fmtDate(batch.expiryDate)}</strong></div>
+          <div><span>Unit Price</span><strong>${money(batch.sellingPrice)}</strong></div>
+        </div>
+        <div class="qty-picker">
+          <button type="button" class="qty-step" id="qtyMinus">−</button>
+          <input id="qtyInput" type="number" min="1" max="${available}" value="1" inputmode="numeric">
+          <button type="button" class="qty-step" id="qtyPlus">+</button>
+        </div>
+        <div class="qty-total">Line Total: <strong id="qtyLineTotal">${money(batch.sellingPrice)}</strong></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="qtyModalCancel">Cancel</button>
+        <button class="btn-success btn-lg" id="qtyModalConfirm">Confirm Add to Cart</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+
+  const input=document.getElementById('qtyInput');
+  const close=()=>host.remove();
+
+  const normalize=()=>{
+    let value=Math.floor(Number(input.value)||1);
+    value=Math.max(1,Math.min(available,value));
+    input.value=String(value);
+    const total=document.getElementById('qtyLineTotal');
+    if(total)total.textContent=money(value*Number(batch.sellingPrice));
+    return value;
+  };
+
+  document.getElementById('qtyModalClose').onclick=close;
+  document.getElementById('qtyModalCancel').onclick=close;
+  document.getElementById('qtyMinus').onclick=()=>{input.value=String(normalize()-1);normalize();};
+  document.getElementById('qtyPlus').onclick=()=>{input.value=String(normalize()+1);normalize();};
+  input.oninput=normalize;
+  input.onkeydown=e=>{
+    if(e.key==='Enter')document.getElementById('qtyModalConfirm').click();
+  };
+  document.getElementById('qtyModalConfirm').onclick=()=>{
+    const qty=normalize();
+    addBatchToCart(product,batch,qty);
+    close();
+  };
+  setTimeout(()=>{input.focus();input.select();},0);
+}
+
+/*
+ PURPOSE:
+ Adds a chosen quantity for a batch to the cart.
+ REFERENCE:
+ Existing cart lines are incremented and never exceed current cached batch stock.
+*/
+function addBatchToCart(product,batch,quantity=1){
+  if(!product||!batch)return;
+
+  const requested=Math.max(1,Math.floor(Number(quantity)||1));
+  const existing=appState.cart.find(x=>x.batchId===batch.id);
+  const current=Number(existing?.quantity||0);
+  const maxQty=Number(batch.quantity);
+
+  if(current+requested>maxQty){
+    toast(`Only ${Math.max(0,maxQty-current)} more unit(s) are available in this batch.`,'warning');
+    return;
+  }
+
+  if(existing){
+    existing.quantity+=requested;
+  }else{
+    appState.cart.push({
+      batchId:batch.id,
+      productId:product.id,
+      productName:product.name,
+      batchNo:batch.batchNo,
+      expiryDate:batch.expiryDate,
+      unitPrice:Number(batch.sellingPrice),
+      quantity:requested,
+      maxQty:maxQty
+    });
+  }
+
+  appState.selectedBatchId=batch.id;
+  toast(`${requested} × ${product.name} • batch ${batch.batchNo} added to cart.`,'success');
   render();
 }
