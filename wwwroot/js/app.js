@@ -1801,7 +1801,7 @@ function showDirectionsModal(product,batch,quantity,defaultDirections=''){
           <textarea id="directionsText" rows="3" placeholder="Enter the exact authorized directions...">${esc(defaultDirections)}</textarea>
         </div>
         <label class="check-row print-directions-check">
-          <input id="printDirectionsNow" type="checkbox" checked>
+          <input id="printDirectionsNow" type="checkbox" ${getPrinterSettings().autoPrintLabel?'checked':''}>
           <span><b>Print directions label after adding to cart</b><small>You can also reprint the label from the cart.</small></span>
         </label>
       </div>
@@ -2207,4 +2207,45 @@ async function completeSale(){
     await loadDashboard();
     render();
   }
+}
+
+
+/*
+ PURPOSE:
+ Builds a medicine directions label and sends it to the configured Label Printer.
+ REFERENCE:
+ Direct mode uses QZ Tray; browser mode opens the normal print dialog.
+*/
+async function printDirectionLabel(line){
+  if(!line?.directions){
+    toast('This cart line has no directions to print.','warning');
+    return;
+  }
+
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'Pharmacy';
+  const ps=getPrinterSettings();
+  const size=labelSizeToInches(ps.labelSize);
+  const html=`<!doctype html>
+  <html><head><meta charset="utf-8"><title>Directions Label</title>
+  <style>
+    @page{size:${size.width}in ${size.height}in;margin:.1in}
+    body{font-family:Arial,sans-serif;margin:0;color:#111}
+    .label{border:1.5px solid #111;padding:10px;box-sizing:border-box;min-height:${Math.max(0.8,size.height-.2)}in}
+    .pharmacy{font-size:15px;font-weight:800;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:6px}
+    .drug{font-size:16px;font-weight:800}
+    .meta{font-size:10px;margin:3px 0;color:#333}
+    .directions{font-size:17px;font-weight:800;line-height:1.25;margin-top:8px}
+    .footer{font-size:9px;margin-top:8px}
+  </style></head><body>
+    <div class="label">
+      <div class="pharmacy">${esc(pharmacy)}</div>
+      <div class="drug">${esc(line.productName)}</div>
+      <div class="meta">${patient?`Patient: ${esc(patient.name)} • `:''}Batch: ${esc(line.batchNo)} • Exp: ${fmtDate(line.expiryDate)} • Qty: ${line.quantity}</div>
+      <div class="directions">${esc(line.directions)}</div>
+      <div class="footer">Use exactly as prescribed / authorized. Keep out of reach of children.</div>
+    </div>
+  </body></html>`;
+
+  await printHtmlToConfiguredPrinter('label',html);
 }
