@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pharmacare-shell-v4-7';
+const CACHE_NAME = 'pharmacare-shell-v4-8';
 const SHELL = ['/', '/index.html', '/css/app.css', '/js/app.js', '/js/offline-db.js', '/manifest.webmanifest'];
 
 /*
