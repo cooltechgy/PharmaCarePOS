@@ -747,3 +747,153 @@ function bindStock() {
       row.style.display=matchText&&matchStatus?'':'none';
     });
   };
+  document.getElementById('stockSearch')?.addEventListener('input',filter);
+  document.getElementById('stockStatus')?.addEventListener('change',filter);
+  document.getElementById('exportStockBtn')?.addEventListener('click',()=>downloadCsv('stock.csv', [['Product','Batch','Expiry','Quantity','Selling Price'],...appState.batches.map(b=>[appState.products.find(p=>p.id===b.productId)?.name,b.batchNo,b.expiryDate,b.quantity,b.sellingPrice]) ]));
+  document.querySelectorAll('[data-stock-view]').forEach(btn=>btn.addEventListener('click',()=>showStockModal(Number(btn.dataset.stockView))));
+}
+
+/*
+ PURPOSE:
+ Opens one batch record and allows quantity, expiry and selling-price correction.
+ REFERENCE:
+ Changes are persisted through /api/stock/{id} and then re-synchronized locally.
+*/
+function showStockModal(batchId) {
+  const batch=appState.batches.find(x=>x.id===batchId); if(!batch) return;
+  const product=appState.products.find(x=>x.id===batch.productId);
+  const host=document.createElement('div'); host.className='modal-backdrop';
+  host.innerHTML=`<div class="modal"><div class="modal-head"><b>Batch: ${esc(batch.batchNo)} — ${esc(product?.name||'')}</b><button class="close-btn" id="stockClose">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>Quantity</label><input id="stockQty" type="number" min="0" value="${batch.quantity}"></div><div class="field"><label>Expiry Date</label><input id="stockExpiry" type="date" value="${String(batch.expiryDate).slice(0,10)}"></div><div class="field"><label>Selling Price</label><input id="stockSell" type="number" step="0.01" value="${batch.sellingPrice}"></div></div></div><div class="modal-foot"><button class="btn-light" id="stockCancel">Cancel</button><button class="btn-success" id="stockSave">Save Changes</button></div></div>`;
+  document.body.appendChild(host); const close=()=>host.remove(); document.getElementById('stockClose').onclick=close; document.getElementById('stockCancel').onclick=close;
+  document.getElementById('stockSave').onclick=async()=>{ if(!navigator.onLine) return toast('Stock adjustment requires server connection.','warning'); try { await api(`/api/stock/${batch.id}`,{method:'PUT',body:JSON.stringify({tenantId:appState.session.tenantId,branchId:appState.session.branchId,quantity:Number(document.getElementById('stockQty').value),expiryDate:document.getElementById('stockExpiry').value,sellingPrice:Number(document.getElementById('stockSell').value)})}); await refreshSnapshot(); close(); render(); toast('Stock batch updated.'); } catch(e){ toast(e.message,'error'); } };
+}
+
+/*
+ PURPOSE:
+ Wires expiry period filtering and CSV export.
+ REFERENCE:
+ Allows the near-expiry report to be used instead of only viewed.
+*/
+function bindExpiry() {
+  document.getElementById('expiryFilter')?.addEventListener('change', e => {
+    const max=e.target.value==='all'?Infinity:Number(e.target.value);
+    document.querySelectorAll('.data-table tbody tr').forEach(row=>{ const cells=row.children; const dl=Number(cells[3]?.textContent); row.style.display=dl<=max?'':'none'; });
+  });
+  document.getElementById('exportExpiryBtn')?.addEventListener('click',()=>downloadCsv('expiry-report.csv',[['Product','Batch','Expiry','Days Left','Quantity'],...appState.batches.sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).map(b=>[appState.products.find(p=>p.id===b.productId)?.name,b.batchNo,b.expiryDate,daysLeft(b.expiryDate),b.quantity])]));
+}
+
+/*
+ PURPOSE:
+ Wires customer/supplier searching and add/edit forms.
+ REFERENCE:
+ One shared implementation keeps both master-data screens consistent.
+*/
+function bindPeople(type) {
+  document.getElementById('addPersonBtn')?.addEventListener('click',()=>showPersonModal(type));
+  document.getElementById('peopleSearch')?.addEventListener('input',e=>{ const q=e.target.value.toLowerCase(); document.querySelectorAll('.data-table tbody tr').forEach(row=>row.style.display=row.textContent.toLowerCase().includes(q)?'':'none'); });
+  document.querySelectorAll('[data-edit-person]').forEach(btn=>btn.addEventListener('click',()=>{ const list=type==='supplier'?appState.suppliers:appState.customers; showPersonModal(type,list.find(x=>x.id===Number(btn.dataset.editPerson))); }));
+}
+
+/*
+ PURPOSE:
+ Creates or edits one customer/supplier using the corresponding API endpoint.
+ REFERENCE:
+ Master records are online-only because they are shared configuration data, not offline sale transactions.
+*/
+function showPersonModal(type, item=null) {
+  const supplier=type==='supplier'; const host=document.createElement('div'); host.className='modal-backdrop';
+  host.innerHTML=`<div class="modal"><div class="modal-head"><b>${item?'Edit':'Add'} ${supplier?'Supplier':'Customer'}</b><button class="close-btn" id="personClose">×</button></div><form id="personForm"><div class="modal-body"><div class="form-grid"><div class="field"><label>Name *</label><input id="personName" required value="${esc(item?.name||'')}"></div>${supplier?`<div class="field"><label>Contact Person</label><input id="personContact" value="${esc(item?.contactPerson||'')}"></div>`:''}<div class="field"><label>Phone</label><input id="personPhone" value="${esc(item?.phone||'')}"></div><div class="field"><label>Email</label><input id="personEmail" type="email" value="${esc(item?.email||'')}"></div></div></div><div class="modal-foot"><button type="button" class="btn-light" id="personCancel">Cancel</button><button class="btn-success">Save</button></div></form></div>`;
+  document.body.appendChild(host); const close=()=>host.remove(); document.getElementById('personClose').onclick=close; document.getElementById('personCancel').onclick=close;
+  document.getElementById('personForm').addEventListener('submit',async e=>{ e.preventDefault(); if(!navigator.onLine)return toast('This master-data change requires internet.','warning'); const body={tenantId:appState.session.tenantId,name:document.getElementById('personName').value,phone:document.getElementById('personPhone').value,email:document.getElementById('personEmail').value}; if(supplier) body.contactPerson=document.getElementById('personContact').value; try { await api(`/api/${supplier?'suppliers':'customers'}${item?`/${item.id}`:''}`,{method:item?'PUT':'POST',body:JSON.stringify(body)}); await refreshSnapshot(); close(); render(); toast(`${supplier?'Supplier':'Customer'} saved.`); } catch(err){ toast(err.message,'error'); } });
+}
+
+/*
+ PURPOSE:
+ Loads sale report data and gives each report tile a useful result.
+ REFERENCE:
+ Sales/profit use server invoices; stock/expiry/customer reports use the synchronized local snapshot.
+*/
+function bindReports() {
+  document.querySelectorAll('[data-report]').forEach(card=>card.addEventListener('click',async()=>{ const type=card.dataset.report; try { if(type==='stock'){downloadCsv('stock-report.csv',[['Product','Batch','Qty','Value'],...appState.batches.map(b=>[appState.products.find(p=>p.id===b.productId)?.name,b.batchNo,b.quantity,Number(b.quantity)*Number(b.purchasePrice)])]);return;} if(type==='expiry'){appState.view='expiry';render();return;} if(type==='customer'){downloadCsv('customers.csv',[['Name','Phone','Email'],...appState.customers.map(c=>[c.name,c.phone,c.email])]);return;} if(type==='purchase'){toast('Purchase stock receiving is working; purchase-history headers are the next module to expand.','info');return;} if(!navigator.onLine)return toast('Sales and profit reports require server connection.','warning'); const d=await api(`/api/reports/sales?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`); showSalesReportModal(d,type); } catch(e){toast(e.message,'error');} }));
+}
+
+/*
+ PURPOSE:
+ Displays recent server invoices or a simple gross-profit calculation.
+ REFERENCE:
+ Profit is calculated from recorded sale line price and current product purchase price in this demo.
+*/
+function showSalesReportModal(data,type) {
+  const host=document.createElement('div'); host.className='modal-backdrop';
+  const sales=data.sales||[]; const lines=data.lines||[];
+  const rows=sales.map(s=>`<tr><td>${esc(s.invoiceNo)}</td><td>${fmtDate(s.createdUtc)}</td><td>${esc(s.paymentMethod)}</td><td>${money(s.total)}</td></tr>`).join('');
+  const revenue=sales.reduce((a,b)=>a+Number(b.total),0); const cost=lines.reduce((a,l)=>{const p=appState.products.find(x=>x.id===l.productId);return a+Number(l.quantity)*Number(p?.purchasePrice||0)},0);
+  host.innerHTML=`<div class="modal"><div class="modal-head"><b>${type==='profit'?'Profit & Loss':'Sales Report'}</b><button class="close-btn" id="reportClose">×</button></div><div class="modal-body">${type==='profit'?`<div class="cards"><div class="metric green"><div class="label">Revenue</div><div class="value">${money(revenue)}</div></div><div class="metric orange"><div class="label">Estimated Cost</div><div class="value">${money(cost)}</div></div><div class="metric blue"><div class="label">Gross Profit</div><div class="value">${money(revenue-cost)}</div></div></div>`:`<div class="table-wrap"><table class="data-table"><thead><tr><th>Invoice</th><th>Date</th><th>Payment</th><th>Total</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No sales yet.</td></tr>'}</tbody></table></div>`}</div></div>`;
+  document.body.appendChild(host); document.getElementById('reportClose').onclick=()=>host.remove();
+}
+
+/*
+ PURPOSE:
+ Loads settings once and persists changes to the tenant settings endpoint.
+ REFERENCE:
+ The visible settings form now survives refresh and another browser session.
+*/
+async function bindSettings() {
+  if(navigator.onLine && !appState.settings){
+    try { appState.settings=await api(`/api/settings?tenantId=${appState.session.tenantId}`); render(); return; }
+    catch { appState.settings={pharmacyName:appState.session.tenantName,address:'',currency:'USD',invoicePrefix:'INV',expiryAlertDays:60}; }
+  }
+
+  document.querySelectorAll('[data-settings-tab]').forEach(btn=>btn.addEventListener('click',()=>{
+    appState.settingsTab=btn.dataset.settingsTab;
+    render();
+  }));
+
+  const saveSettings = async (patch={}) => {
+    if(!navigator.onLine) return toast('Saving shared settings requires internet.','warning');
+    const current = appState.settings || {};
+    const payload={
+      tenantId:appState.session.tenantId,
+      pharmacyName:patch.pharmacyName ?? current.pharmacyName ?? appState.session.tenantName,
+      address:patch.address ?? current.address ?? '',
+      currency:patch.currency ?? current.currency ?? 'USD',
+      invoicePrefix:patch.invoicePrefix ?? current.invoicePrefix ?? 'INV',
+      expiryAlertDays:Number(patch.expiryAlertDays ?? current.expiryAlertDays ?? 60)
+    };
+    appState.settings=await api('/api/settings',{method:'PUT',body:JSON.stringify(payload)});
+    appState.session.tenantName=appState.settings.pharmacyName;
+    localStorage.setItem('pharmacare.session',JSON.stringify(appState.session));
+    toast('Settings saved.');
+    render();
+  };
+
+  document.getElementById('saveGeneralSettingsBtn')?.addEventListener('click',async()=>{
+    try { await saveSettings({pharmacyName:document.getElementById('setName').value.trim(),address:document.getElementById('setAddress').value.trim(),currency:document.getElementById('setCurrency').value,expiryAlertDays:Number(document.getElementById('setExpiryDays').value)}); }
+    catch(e){ toast(e.message,'error'); }
+  });
+
+  document.getElementById('saveInvoiceSettingsBtn')?.addEventListener('click',async()=>{
+    try { await saveSettings({invoicePrefix:document.getElementById('setPrefix').value.trim() || 'INV',currency:document.getElementById('invoiceCurrency').value}); }
+    catch(e){ toast(e.message,'error'); }
+  });
+
+  document.getElementById('previewInvoiceBtn')?.addEventListener('click',()=>{
+    const prefix=document.getElementById('setPrefix')?.value || appState.settings?.invoicePrefix || 'INV';
+    alert(`${appState.settings?.pharmacyName || appState.session.tenantName}\nInvoice: ${prefix}-000001\nCurrency: ${document.getElementById('invoiceCurrency')?.value || appState.settings?.currency || 'USD'}`);
+  });
+
+  document.getElementById('loadSettingsUsersBtn')?.addEventListener('click',async()=>{
+    try { appState.settingsUsers=await api(`/api/users?tenantId=${appState.session.tenantId}`); render(); }
+    catch(e){ toast(e.message,'error'); }
+  });
+
+  document.getElementById('addSettingsUserBtn')?.addEventListener('click',()=>showAddSettingsUserModal());
+
+  document.getElementById('downloadBackupBtn')?.addEventListener('click',()=>{
+    const backup={exportedUtc:new Date().toISOString(),tenantId:appState.session.tenantId,branchId:appState.session.branchId,settings:appState.settings,products:appState.products,batches:appState.batches,customers:appState.customers,suppliers:appState.suppliers};
+    downloadText(`pharmacare-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(backup,null,2),'application/json');
+  });
+  document.getElementById('downloadProductsCsvBtn')?.addEventListener('click',()=>{
+    const rows=[['Name','Generic','Strength','Brand','Barcode','Selling Price'],...appState.products.map(p=>[p.name,p.genericName,p.strength,p.brand,p.barcode,p.sellingPrice])];
+    downloadText('products.csv',rows.map(r=>r.map(csvCell).join(',')).join('\n'),'text/csv');
+  });
