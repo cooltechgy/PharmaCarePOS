@@ -525,13 +525,34 @@ function settingsView() {
       <div class="checkout-actions">
         <button class="btn-light" id="resetDirectionTemplatesBtn">Reset Default Directions</button>
       </div>`;
+  } else if (tab === 'printers') {
+    const ps=getPrinterSettings();
+    body = `
+      <div class="section-note"><b>Printer setup:</b> Browser Print opens the normal print dialog. Direct Print uses QZ Tray to send a job to the selected Windows/macOS/Linux printer by name. QZ Tray must be installed and trusted on this computer.</div>
+      <div class="form-grid">
+        <div class="field"><label>Print Mode</label><select id="printerMode"><option value="browser" ${ps.mode==='browser'?'selected':''}>Browser Print Dialog</option><option value="qz" ${ps.mode==='qz'?'selected':''}>Direct Print (QZ Tray)</option></select></div>
+        <div class="field"><label>QZ Status</label><input id="qzStatus" value="Not checked" disabled></div>
+        <div class="field"><label>Bill / Receipt Printer</label><input id="billPrinterName" list="printerNameList" value="${esc(ps.billPrinter||'')}" placeholder="Example: EPSON TM-T20III"></div>
+        <div class="field"><label>Bill Paper Width</label><select id="billPaperWidth"><option value="80" ${String(ps.billWidth)==='80'?'selected':''}>80 mm</option><option value="58" ${String(ps.billWidth)==='58'?'selected':''}>58 mm</option></select></div>
+        <div class="field"><label>Label Printer</label><input id="labelPrinterName" list="printerNameList" value="${esc(ps.labelPrinter||'')}" placeholder="Example: Zebra ZD220"></div>
+        <div class="field"><label>Label Size</label><select id="labelSize"><option value="4x2" ${ps.labelSize==='4x2'?'selected':''}>4 × 2 in</option><option value="3x2" ${ps.labelSize==='3x2'?'selected':''}>3 × 2 in</option><option value="2x1" ${ps.labelSize==='2x1'?'selected':''}>2 × 1 in</option></select></div>
+        <div class="field"><label class="check-row"><input id="autoPrintBill" type="checkbox" ${ps.autoPrintBill?'checked':''}><span><b>Auto print bill after sale</b><small>Print the receipt immediately after a completed sale.</small></span></label></div>
+        <div class="field"><label class="check-row"><input id="autoPrintLabel" type="checkbox" ${ps.autoPrintLabel?'checked':''}><span><b>Auto print medicine label</b><small>Print directions label after it is confirmed.</small></span></label></div>
+      </div>
+      <datalist id="printerNameList"></datalist>
+      <div class="checkout-actions">
+        <button class="btn-light" id="detectPrintersBtn">Detect Printers</button>
+        <button class="btn-primary" id="testBillPrinterBtn">Test Bill Printer</button>
+        <button class="btn-purple" id="testLabelPrinterBtn">Test Label Printer</button>
+        <button class="btn-success" id="savePrinterSettingsBtn">Save Printer Settings</button>
+      </div>`;
   } else if (tab === 'backup') {
     body = `<div class="section-note"><b>Local backup:</b> downloads the current cached catalogue, batches, customers, suppliers and settings as JSON. This is useful for emergency export but is not a replacement for SQL Server backups.</div><div class="checkout-actions"><button class="btn-primary" id="downloadBackupBtn">Download JSON Backup</button><button class="btn-light" id="downloadProductsCsvBtn">Export Products CSV</button></div>`;
   } else {
     body = `<div class="form-grid"><div class="field"><label>Connection</label><input value="${navigator.onLine?'Online':'Offline'}" disabled></div><div class="field"><label>Pending Offline Sales</label><input id="pendingSalesCount" value="Checking..." disabled></div></div><div class="checkout-actions"><button class="btn-primary" id="systemSyncBtn">Sync Now</button><button class="btn-light" id="clearOfflineCacheBtn">Refresh Local Cache</button></div>`;
   }
 
-  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('directions')}" data-settings-tab="directions">Directions</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
+  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('directions')}" data-settings-tab="directions">Directions</button><button class="tab${active('printers')}" data-settings-tab="printers">Printers</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
 }
 
 /*
@@ -589,7 +610,7 @@ function bindPos() {
   document.querySelectorAll('.cart-qty').forEach(input=>input.addEventListener('change',()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render();}));
   document.querySelectorAll('[data-payment]').forEach(btn=>btn.addEventListener('click',()=>{appState.paymentMethod=btn.dataset.payment;render();}));
   document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
-  document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
   document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{ if(!appState.cart.length) return toast('Cart is empty.','warning'); appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod}); localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales)); appState.cart=[]; render(); toast('Sale held locally.'); });
 }
 
@@ -959,6 +980,44 @@ async function bindSettings() {
     toast('Default directions restored.');
   });
 
+  document.getElementById('savePrinterSettingsBtn')?.addEventListener('click',()=>{
+    const settings={
+      mode:document.getElementById('printerMode').value,
+      billPrinter:document.getElementById('billPrinterName').value.trim(),
+      labelPrinter:document.getElementById('labelPrinterName').value.trim(),
+      billWidth:Number(document.getElementById('billPaperWidth').value||80),
+      labelSize:document.getElementById('labelSize').value,
+      autoPrintBill:document.getElementById('autoPrintBill').checked,
+      autoPrintLabel:document.getElementById('autoPrintLabel').checked
+    };
+    savePrinterSettings(settings);
+    toast('Printer settings saved.');
+  });
+  document.getElementById('detectPrintersBtn')?.addEventListener('click',async()=>{
+    try{
+      const printers=await detectQzPrinters();
+      const list=document.getElementById('printerNameList');
+      if(list)list.innerHTML=printers.map(p=>`<option value="${esc(p)}"></option>`).join('');
+      const status=document.getElementById('qzStatus');
+      if(status)status.value=`Connected • ${printers.length} printer(s)`;
+      toast(`${printers.length} printer(s) detected.`);
+    }catch(e){
+      const status=document.getElementById('qzStatus');
+      if(status)status.value='QZ Tray not connected';
+      toast(e.message,'warning');
+    }
+  });
+  document.getElementById('testBillPrinterBtn')?.addEventListener('click',async()=>{
+    const ps=readPrinterSettingsFromForm();
+    savePrinterSettings(ps);
+    await printHtmlToConfiguredPrinter('bill',buildTestBillHtml(),true);
+  });
+  document.getElementById('testLabelPrinterBtn')?.addEventListener('click',async()=>{
+    const ps=readPrinterSettingsFromForm();
+    savePrinterSettings(ps);
+    await printHtmlToConfiguredPrinter('label',buildTestLabelHtml(),true);
+  });
+
   document.getElementById('downloadBackupBtn')?.addEventListener('click',()=>{
     const backup={exportedUtc:new Date().toISOString(),tenantId:appState.session.tenantId,branchId:appState.session.branchId,settings:appState.settings,products:appState.products,batches:appState.batches,customers:appState.customers,suppliers:appState.suppliers};
     downloadText(`pharmacare-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(backup,null,2),'application/json');
@@ -1110,7 +1169,7 @@ function posView(){
 
 /* PURPOSE: Wire patient-aware POS while retaining offline-first behavior. REFERENCE: selectedCustomerId is included in queued sale. */
 function bindPos(){
-  const search=document.getElementById('posSearch'),filter=()=>{const q=(search?.value||'').toLowerCase();document.querySelectorAll('.product-row').forEach(row=>{const p=appState.products.find(x=>String(x.id)===row.dataset.productId);row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none'})};search?.addEventListener('input',filter);document.getElementById('posSearchBtn')?.addEventListener('click',filter);document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{appState.selectedProductId=Number(row.dataset.productId);const first=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate))[0];appState.selectedBatchId=first?.id||null;render()});document.querySelectorAll('[data-batch-id]').forEach(btn=>btn.onclick=()=>{appState.selectedBatchId=Number(btn.dataset.batchId);render()});document.getElementById('addToCartBtn')?.addEventListener('click',addSelectedBatchToCart);document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render()});document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render()});document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render()});document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render()});document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null});document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);document.getElementById('printBtn')?.addEventListener('click',()=>window.print());document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{if(!appState.cart.length)return toast('Cart is empty.','warning');appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));appState.cart=[];render();toast('Sale held locally.')});
+  const search=document.getElementById('posSearch'),filter=()=>{const q=(search?.value||'').toLowerCase();document.querySelectorAll('.product-row').forEach(row=>{const p=appState.products.find(x=>String(x.id)===row.dataset.productId);row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none'})};search?.addEventListener('input',filter);document.getElementById('posSearchBtn')?.addEventListener('click',filter);document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{appState.selectedProductId=Number(row.dataset.productId);const first=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate))[0];appState.selectedBatchId=first?.id||null;render()});document.querySelectorAll('[data-batch-id]').forEach(btn=>btn.onclick=()=>{appState.selectedBatchId=Number(btn.dataset.batchId);render()});document.getElementById('addToCartBtn')?.addEventListener('click',addSelectedBatchToCart);document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render()});document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render()});document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render()});document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render()});document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null});document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{if(!appState.cart.length)return toast('Cart is empty.','warning');appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));appState.cart=[];render();toast('Sale held locally.')});
 }
 
 /* PURPOSE: Complete a patient-aware sale by saving locally first, then synchronizing. REFERENCE: Offline-first transaction guarantee plus patient history linkage. */
@@ -1195,7 +1254,7 @@ function bindPos(){
   document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null;});
   document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
   document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
-  document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
   document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
     if(!appState.cart.length)return toast('Cart is empty.','warning');
     appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});
@@ -1950,4 +2009,202 @@ function getDirectionTemplates(){
 function saveDirectionTemplates(templates){
   const cleaned=(templates||[]).map(x=>String(x||'').trim()).filter(Boolean);
   localStorage.setItem(directionTemplateStorageKey(),JSON.stringify(cleaned));
+}
+
+
+/* ============================================================================
+ SETTINGS > PRINTERS + DIRECT PRINT
+ PURPOSE:
+ Stores separate receipt and medicine-label printer settings and sends print jobs
+ directly through QZ Tray when available. Browser print remains the safe fallback.
+ REFERENCE:
+ QZ Tray exposes qz.websocket.connect(), qz.printers.find(), qz.configs.create()
+ and qz.print() for local printer access.
+============================================================================ */
+
+/* PURPOSE: Returns default printer settings for this tenant/browser. */
+function defaultPrinterSettings(){
+  return {mode:'browser',billPrinter:'',labelPrinter:'',billWidth:80,labelSize:'4x2',autoPrintBill:false,autoPrintLabel:false};
+}
+
+/* PURPOSE: Tenant-specific local storage key for printer preferences. */
+function printerSettingsStorageKey(){
+  return `pharmacare.printerSettings.${appState.session?.tenantId||'default'}`;
+}
+
+/* PURPOSE: Loads saved bill/label printer settings. */
+function getPrinterSettings(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(printerSettingsStorageKey())||'null');
+    return {...defaultPrinterSettings(),...(saved||{})};
+  }catch{
+    return defaultPrinterSettings();
+  }
+}
+
+/* PURPOSE: Saves bill/label printer settings. */
+function savePrinterSettings(settings){
+  localStorage.setItem(printerSettingsStorageKey(),JSON.stringify({...defaultPrinterSettings(),...settings}));
+}
+
+/* PURPOSE: Reads current Settings > Printers form values. */
+function readPrinterSettingsFromForm(){
+  return {
+    mode:document.getElementById('printerMode')?.value||'browser',
+    billPrinter:document.getElementById('billPrinterName')?.value.trim()||'',
+    labelPrinter:document.getElementById('labelPrinterName')?.value.trim()||'',
+    billWidth:Number(document.getElementById('billPaperWidth')?.value||80),
+    labelSize:document.getElementById('labelSize')?.value||'4x2',
+    autoPrintBill:Boolean(document.getElementById('autoPrintBill')?.checked),
+    autoPrintLabel:Boolean(document.getElementById('autoPrintLabel')?.checked)
+  };
+}
+
+/* PURPOSE: Connects to QZ Tray and returns installed printer names. */
+async function detectQzPrinters(){
+  if(!window.qz)throw new Error('QZ Tray JavaScript bridge is unavailable. Install/run QZ Tray and check internet access for the QZ script.');
+  if(!qz.websocket.isActive())await qz.websocket.connect({retries:2,delay:1});
+  return await qz.printers.find();
+}
+
+/*
+ PURPOSE:
+ Sends HTML to the configured printer. In browser mode it opens a standard print
+ window. In QZ mode it targets the exact saved printer name.
+*/
+async function printHtmlToConfiguredPrinter(kind,html,isTest=false){
+  const ps=getPrinterSettings();
+  const printerName=kind==='label'?ps.labelPrinter:ps.billPrinter;
+
+  if(ps.mode==='qz'){
+    if(!printerName){
+      toast(`Set the ${kind==='label'?'label':'bill'} printer name in Settings → Printers.`,'warning');
+      return false;
+    }
+    try{
+      if(!window.qz)throw new Error('QZ Tray bridge not loaded.');
+      if(!qz.websocket.isActive())await qz.websocket.connect({retries:2,delay:1});
+      const found=await qz.printers.find(printerName);
+      const options=kind==='label'
+        ? {units:'in',size:labelSizeToInches(ps.labelSize),margins:0}
+        : {units:'mm',size:{width:Number(ps.billWidth||80),height:297},margins:0};
+      const config=qz.configs.create(found,options);
+      await qz.print(config,[{type:'pixel',format:'html',flavor:'plain',data:html}]);
+      if(isTest)toast(`Test sent to ${found}.`);
+      return true;
+    }catch(e){
+      toast(`Direct print failed: ${e.message}. Falling back to browser print.`,'warning');
+    }
+  }
+
+  return openBrowserPrintWindow(html,kind);
+}
+
+/* PURPOSE: Converts configured label preset to QZ inches. */
+function labelSizeToInches(value){
+  if(value==='3x2')return {width:3,height:2};
+  if(value==='2x1')return {width:2,height:1};
+  return {width:4,height:2};
+}
+
+/* PURPOSE: Browser fallback print window when direct printing is unavailable. */
+function openBrowserPrintWindow(html,kind){
+  const w=window.open('','_blank','width=760,height=620');
+  if(!w){toast('Popup blocked. Allow popups to print.','warning');return false;}
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.onload=()=>{w.print();};
+  return true;
+}
+
+/* PURPOSE: Builds the current cart as a compact receipt for the bill printer. */
+function buildBillHtml(cart=appState.cart){
+  const ps=getPrinterSettings();
+  const width=Number(ps.billWidth||80);
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'Pharmacy';
+  const total=cart.reduce((sum,l)=>sum+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  @page{size:${width}mm auto;margin:2mm}
+  body{font-family:Arial,sans-serif;width:${Math.max(48,width-4)}mm;margin:0;font-size:11px;color:#111}
+  h2{text-align:center;margin:0 0 4px}.center{text-align:center}.line{border-top:1px dashed #333;margin:6px 0}
+  table{width:100%;border-collapse:collapse}th,td{padding:3px 0;text-align:left;vertical-align:top}td.r,th.r{text-align:right}
+  .total{font-size:15px;font-weight:800}.small{font-size:9px}
+  </style></head><body>
+  <h2>${esc(pharmacy)}</h2><div class="center small">${new Date().toLocaleString()}</div>
+  ${patient?`<div class="small">Patient: ${esc(patient.name)}</div>`:''}<div class="line"></div>
+  <table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Amt</th></tr></thead><tbody>
+  ${cart.map(l=>`<tr><td>${esc(l.productName)}<div class="small">Batch ${esc(l.batchNo)}</div></td><td class="r">${l.quantity}</td><td class="r">${money(Number(l.quantity)*Number(l.unitPrice))}</td></tr>`).join('')}
+  </tbody></table><div class="line"></div><div class="total">TOTAL <span style="float:right">${money(total)}</span></div>
+  <div class="line"></div><div class="center small">Thank you</div></body></html>`;
+}
+
+/* PURPOSE: Prints current cart to configured bill printer. */
+async function printCurrentBill(){
+  if(!appState.cart.length)return toast('Cart is empty.','warning');
+  await printHtmlToConfiguredPrinter('bill',buildBillHtml());
+}
+
+/* PURPOSE: Test receipt content for Settings > Printers. */
+function buildTestBillHtml(){
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{margin:2mm}body{font-family:Arial,sans-serif;font-size:12px;text-align:center}h2{margin:0}.line{border-top:1px dashed #333;margin:8px 0}</style></head><body><h2>PharmaCare POS</h2><div>Bill Printer Test</div><div class="line"></div><b>Printer setup is working</b><div>${new Date().toLocaleString()}</div></body></html>`;
+}
+
+/* PURPOSE: Test label content for Settings > Printers. */
+function buildTestLabelHtml(){
+  return `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:4in 2in;margin:.1in}body{font-family:Arial,sans-serif;margin:0}.label{border:1px solid #111;padding:10px}.title{font-size:18px;font-weight:800}.directions{font-size:16px;font-weight:800;margin-top:10px}</style></head><body><div class="label"><div class="title">PharmaCare POS</div><div>Label Printer Test</div><div class="directions">Take as directed</div></div></body></html>`;
+}
+
+/*
+ PURPOSE:
+ Completes the sale and optionally prints the bill automatically before the cart is
+ cleared from memory.
+ REFERENCE:
+ Sale remains offline-first; printing is a separate local side effect.
+*/
+async function completeSale(){
+  if(!appState.cart.length)return;
+
+  const printCart=appState.cart.map(x=>({...x}));
+  const printCustomerId=appState.selectedCustomerId||null;
+  const opId=crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`;
+  const sale={
+    tenantId:appState.session.tenantId,
+    branchId:appState.session.branchId,
+    clientOperationId:opId,
+    discount:0,
+    paymentMethod:appState.paymentMethod,
+    customerId:printCustomerId,
+    lines:appState.cart.map(x=>({batchId:x.batchId,quantity:x.quantity})),
+    localCreatedUtc:new Date().toISOString(),
+    status:'pending'
+  };
+
+  await PharmaOffline.put('pendingSales',opId,sale);
+  for(const line of appState.cart){
+    const b=appState.batches.find(x=>x.id===line.batchId);
+    if(b)b.quantity=Math.max(0,Number(b.quantity)-Number(line.quantity));
+  }
+  await PharmaOffline.replaceAll('batches',appState.batches);
+
+  const ps=getPrinterSettings();
+  if(ps.autoPrintBill){
+    const oldCustomerId=appState.selectedCustomerId;
+    appState.selectedCustomerId=printCustomerId;
+    await printHtmlToConfiguredPrinter('bill',buildBillHtml(printCart));
+    appState.selectedCustomerId=oldCustomerId;
+  }
+
+  appState.cart=[];
+  appState.selectedCustomerId=null;
+  render();
+  toast(navigator.onLine?'Sale saved locally. Synchronizing...':'Sale saved offline. It will sync automatically.');
+
+  if(navigator.onLine){
+    await syncPendingSales();
+    await refreshSnapshot();
+    await loadDashboard();
+    render();
+  }
 }
