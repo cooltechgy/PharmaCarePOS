@@ -448,3 +448,149 @@ app.MapGet("/api/customers/{id:int}/history", async (int id, int tenantId, AppDb
 
 /*
  PURPOSE:
+ Returns every recorded sale line for a medicine so product managers can review movement and revenue.
+ REFERENCE:
+ ProductId on SaleLine is stable historical linkage even when product master pricing later changes.
+*/
+app.MapGet("/api/products/{id:int}/sales-history", async (int id, int tenantId, int branchId, AppDbContext db) =>
+{
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
+    if (product is null) return Results.NotFound(new { message = "Product not found." });
+    var rows = await (from l in db.SaleLines
+                      join s in db.Sales on l.SaleId equals s.Id
+                      where l.ProductId == id && s.TenantId == tenantId && s.BranchId == branchId
+                      orderby s.CreatedUtc descending
+                      select new { s.InvoiceNo, s.CreatedUtc, s.CustomerId, l.BatchNo, l.ExpiryDate, l.Quantity, l.UnitPrice, l.LineTotal }).Take(500).ToListAsync();
+    return Results.Ok(new { product, rows });
+});
+
+/*
+ PURPOSE:
+ Imports active clinical and branded drug concepts from the U.S. National Library of Medicine RxNorm API.
+ REFERENCE:
+ RxNorm /REST/allconcepts.json?tty=SCD+SBD returns active concepts. The importer stores the RxCUI so reruns can skip duplicates.
+*/
+app.MapPost("/api/medicines/import-rxnorm", async (MedicineImportRequest request, AppDbContext db, IHttpClientFactory httpFactory) =>
+{
+    var http = httpFactory.CreateClient();
+    http.Timeout = TimeSpan.FromMinutes(5);
+    using var response = await http.GetAsync("https://rxnav.nlm.nih.gov/REST/allconcepts.json?tty=SCD+SBD");
+    if (!response.IsSuccessStatusCode) return Results.Problem("RxNorm service could not be reached.");
+    using var json = await System.Text.Json.JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+    if (!json.RootElement.TryGetProperty("minConceptGroup", out var group) || !group.TryGetProperty("minConcept", out var concepts))
+        return Results.Problem("RxNorm returned an unexpected response.");
+
+    /*
+     PURPOSE:
+     Loads existing RxNorm IDs from SQL Server, then converts them to a HashSet in memory.
+     REFERENCE:
+     EF Core supports ToListAsync() for IQueryable queries. HashSet conversion is performed
+     after the query completes because ToHashSetAsync() is not available in all EF Core setups.
+    */
+    var existingRxNormIds = await db.Products
+        .Where(x => x.TenantId == request.TenantId && x.RxNormId != "")
+        .Select(x => x.RxNormId)
+        .ToListAsync();
+
+    var existing = existingRxNormIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var added = 0; var skipped = 0; var max = request.Limit <= 0 ? int.MaxValue : request.Limit;
+    foreach (var c in concepts.EnumerateArray())
+    {
+        if (added >= max) break;
+        var rxcui = c.TryGetProperty("rxcui", out var rv) ? rv.GetString() ?? "" : "";
+        var name = c.TryGetProperty("name", out var nv) ? nv.GetString() ?? "" : "";
+        var tty = c.TryGetProperty("tty", out var tv) ? tv.GetString() ?? "" : "";
+        if (string.IsNullOrWhiteSpace(rxcui) || string.IsNullOrWhiteSpace(name) || existing.Contains(rxcui)) { skipped++; continue; }
+        db.Products.Add(new Product
+        {
+            TenantId = request.TenantId, Name = name, GenericName = name, Category = tty == "SBD" ? "Branded Drug" : "Clinical Drug",
+            Brand = tty == "SBD" ? "RxNorm Brand" : "Generic", RxNormId = rxcui, DosageForm = tty,
+            ImageUrl = "/images/medicine-placeholder.svg", TrackBatchExpiry = true, SellingPrice = 0, PurchasePrice = 0
+        });
+        existing.Add(rxcui); added++;
+        if (added % 500 == 0) await db.SaveChangesAsync();
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(new { added, skipped, source = "RxNorm", note = "Images use a placeholder until a DailyMed label image is matched." });
+});
+
+/*
+ PURPOSE:
+ Tries to enrich a medicine with the first available DailyMed label image using its RxCUI.
+ REFERENCE:
+ DailyMed v2 /spls can filter by rxcui and /spls/{SETID}/media returns label media URLs.
+*/
+app.MapPost("/api/products/{id:int}/enrich-image", async (int id, int tenantId, AppDbContext db, IHttpClientFactory httpFactory) =>
+{
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
+    if (product is null) return Results.NotFound(new { message = "Product not found." });
+    if (string.IsNullOrWhiteSpace(product.RxNormId)) return Results.BadRequest(new { message = "Product has no RxNorm ID." });
+    var http = httpFactory.CreateClient();
+    try
+    {
+        var splJson = await http.GetStringAsync($"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls.json?rxcui={Uri.EscapeDataString(product.RxNormId)}&pagesize=1");
+        using var splDoc = System.Text.Json.JsonDocument.Parse(splJson);
+        var data = splDoc.RootElement.TryGetProperty("data", out var d) ? d : default;
+        if (data.ValueKind != System.Text.Json.JsonValueKind.Array || data.GetArrayLength() == 0) return Results.Ok(new { matched = false, imageUrl = product.ImageUrl });
+        var first = data[0];
+        var setId = first.TryGetProperty("setid", out var set) ? set.GetString() : null;
+        if (string.IsNullOrWhiteSpace(setId)) return Results.Ok(new { matched = false, imageUrl = product.ImageUrl });
+        var mediaJson = await http.GetStringAsync($"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/{setId}/media.json");
+        using var mediaDoc = System.Text.Json.JsonDocument.Parse(mediaJson);
+        string? image = null;
+        if (mediaDoc.RootElement.TryGetProperty("data", out var media) && media.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            foreach (var m in media.EnumerateArray())
+            {
+                foreach (var prop in m.EnumerateObject())
+                {
+                    var val = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String ? prop.Value.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(val) && (val.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || val.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || val.EndsWith(".png", StringComparison.OrdinalIgnoreCase))) { image = val; break; }
+                }
+                if (image is not null) break;
+            }
+        }
+        if (image is not null) { product.ImageUrl = image; await db.SaveChangesAsync(); }
+        return Results.Ok(new { matched = image is not null, imageUrl = product.ImageUrl });
+    }
+    catch { return Results.Ok(new { matched = false, imageUrl = product.ImageUrl }); }
+});
+
+/*
+ PURPOSE:
+ Copies all customer profile fields from the request to the entity in one beginner-readable helper.
+ REFERENCE:
+ Both create and edit endpoints call this function so fields cannot silently diverge.
+*/
+static Customer MapCustomer(Customer c, CustomerRequest r)
+{
+    c.Name=r.Name; c.DateOfBirth=r.DateOfBirth; c.Sex=r.Sex ?? ""; c.Phone=r.Phone ?? ""; c.Email=r.Email ?? ""; c.Address=r.Address ?? "";
+    c.Allergies=r.Allergies ?? ""; c.MedicalConditions=r.MedicalConditions ?? ""; c.CurrentMedications=r.CurrentMedications ?? "";
+    c.DoctorName=r.DoctorName ?? ""; c.DoctorPhone=r.DoctorPhone ?? ""; c.EmergencyContactName=r.EmergencyContactName ?? "";
+    c.EmergencyContactRelationship=r.EmergencyContactRelationship ?? ""; c.EmergencyContactPhone=r.EmergencyContactPhone ?? ""; c.Notes=r.Notes ?? "";
+    return c;
+}
+
+/*
+ PURPOSE:
+ Allows the SPA router to refresh deep links without receiving a 404.
+ REFERENCE:
+ All visual views are client-side sections inside index.html/app.js.
+*/
+app.MapFallbackToFile("index.html");
+
+app.Run();
+
+record LoginRequest(string TenantCode, string Username, string Password);
+record SaleRequest(int TenantId, int BranchId, string ClientOperationId, decimal Discount, string PaymentMethod, int? CustomerId, List<SaleLineRequest> Lines);
+record SaleLineRequest(int BatchId, decimal Quantity);
+record ProductRequest(int TenantId, string Name, string GenericName, string Strength, string PackSize, string Category, string Brand, string Barcode, decimal SellingPrice, decimal PurchasePrice, bool TrackBatchExpiry, bool RequiresPrescription, string? RxNormId, string? ImageUrl, string? Manufacturer, string? DosageForm, string? Notes);
+record PurchaseRequest(int TenantId, int BranchId, int SupplierId, string InvoiceNo, List<PurchaseLineRequest> Lines);
+record PurchaseLineRequest(int ProductId, string BatchNo, DateTime ExpiryDate, decimal Quantity, decimal PurchasePrice, decimal SellingPrice);
+
+record CustomerRequest(int TenantId, string Name, DateTime? DateOfBirth, string? Sex, string? Phone, string? Email, string? Address, string? Allergies, string? MedicalConditions, string? CurrentMedications, string? DoctorName, string? DoctorPhone, string? EmergencyContactName, string? EmergencyContactRelationship, string? EmergencyContactPhone, string? Notes);
+record MedicineImportRequest(int TenantId, int Limit);
+record SupplierRequest(int TenantId, string Name, string ContactPerson, string Phone, string Email);
+record UserCreateRequest(int TenantId, int BranchId, string Username, string Password, string DisplayName, string Role);
+record SettingsRequest(int TenantId, string PharmacyName, string Address, string Currency, string InvoicePrefix, int ExpiryAlertDays);
+record StockAdjustRequest(int TenantId, int BranchId, decimal Quantity, DateTime ExpiryDate, decimal SellingPrice);
