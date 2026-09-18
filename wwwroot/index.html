@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#075985" />
+  <title>PharmaCare POS</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <!--
+    PURPOSE:
+    Root mounting point for the pharmacy SaaS single-page application.
+    REFERENCE:
+    app.js renders every screen here so the service worker can cache one consistent offline shell.
+  -->
+  <div id="app"></div>
+  <div id="toastHost" class="toast-host"></div>
+  <script src="/js/offline-db.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
