@@ -379,7 +379,7 @@ function posView() {
       <div class="panel">
         <div class="panel-head"><span>Cart (${appState.cart.length} lines)</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear</button></div>
         <div class="panel-body">
-          <div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${appState.cart.map((l,i)=>`<tr><td>${i+1}</td><td><b>${esc(l.productName)}</b></td><td>${esc(l.batchNo)}</td><td class="${daysLeft(l.expiryDate)<=30?'danger-text':''}">${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:72px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td><button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Scan or select a medicine to begin.</td></tr>'}</tbody></table></div>
+          <div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${appState.cart.map((l,i)=>`<tr><td>${i+1}</td><td><b>${esc(l.productName)}</b>${l.directions?`<br><small class="directions-line">${esc(l.directions)}</small>`:''}</td><td>${esc(l.batchNo)}</td><td class="${daysLeft(l.expiryDate)<=30?'danger-text':''}">${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:72px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button> `:'' }<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Scan or select a medicine to begin.</td></tr>'}</tbody></table></div>
           <div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div>
           <div style="margin-top:14px"><b>Payment Method</b><div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div></div>
           <div class="checkout-actions"><button class="btn-light" id="holdSaleBtn">Hold (F7)</button><button class="btn-light" id="printBtn">Print (F8)</button><button class="btn-success btn-lg" id="completeSaleBtn" ${appState.cart.length?'':'disabled'}>Complete Sale (F9)</button></div>
@@ -569,7 +569,7 @@ function bindPos() {
   document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.addEventListener('click',()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();}));
   document.querySelectorAll('.cart-qty').forEach(input=>input.addEventListener('change',()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render();}));
   document.querySelectorAll('[data-payment]').forEach(btn=>btn.addEventListener('click',()=>{appState.paymentMethod=btn.dataset.payment;render();}));
-  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
   document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
   document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{ if(!appState.cart.length) return toast('Cart is empty.','warning'); appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod}); localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales)); appState.cart=[]; render(); toast('Sale held locally.'); });
 }
@@ -1030,17 +1030,17 @@ function showPersonModal(type,item=null){
 }
 
 /* PURPOSE: Show patient emergency/medical record plus medicine purchase history. REFERENCE: History is derived from linked sale invoices and sale lines. */
-async function showCustomerMedicalRecord(id){if(!navigator.onLine)return toast('Medical record history requires server connection.','warning');try{const d=await api(`/api/customers/${id}/history?tenantId=${appState.session.tenantId}`),c=d.customer,saleMap=Object.fromEntries(d.sales.map(s=>[s.id,s]));const host=document.createElement('div');host.className='modal-backdrop';host.innerHTML=`<div class="modal wide"><div class="modal-head"><b>Patient Medical Record — ${esc(c.name)}</b><button class="close-btn" id="cmClose">×</button></div><div class="modal-body"><div class="profile-grid"><div class="profile-card"><h4>Patient Details</h4><div class="profile-line"><b>DOB:</b> ${c.dateOfBirth?fmtDate(c.dateOfBirth):'—'} &nbsp; <b>Sex:</b> ${esc(c.sex||'—')}</div><div class="profile-line"><b>Phone:</b> ${esc(c.phone||'—')}</div><div class="profile-line"><b>Email:</b> ${esc(c.email||'—')}</div><div class="profile-line"><b>Address:</b> ${esc(c.address||'—')}</div></div><div class="profile-card"><h4>Emergency Information</h4><div class="profile-line"><b>Contact:</b> ${esc(c.emergencyContactName||'—')}</div><div class="profile-line"><b>Relationship:</b> ${esc(c.emergencyContactRelationship||'—')}</div><div class="profile-line"><b>Phone:</b> ${esc(c.emergencyContactPhone||'—')}</div><div class="profile-line"><b>Doctor:</b> ${esc(c.doctorName||'—')} ${esc(c.doctorPhone||'')}</div></div><div class="profile-card"><h4>Medical Information</h4><div class="profile-line"><b>Allergies:</b> ${esc(c.allergies||'None recorded')}</div><div class="profile-line"><b>Conditions:</b> ${esc(c.medicalConditions||'None recorded')}</div><div class="profile-line"><b>Current Medicines:</b> ${esc(c.currentMedications||'None recorded')}</div></div><div class="profile-card"><h4>Notes</h4><div class="profile-line">${esc(c.notes||'No notes')}</div></div></div><h3>Complete Medicine Purchase History</h3><div class="table-wrap history-table"><table class="data-table"><thead><tr><th>Date</th><th>Invoice</th><th>Medicine</th><th>Batch</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${d.lines.map(l=>{const s=saleMap[l.saleId]||{};return `<tr><td>${fmtDate(s.createdUtc)}</td><td>${esc(s.invoiceNo||'')}</td><td><b>${esc(l.productName)}</b></td><td>${esc(l.batchNo)}</td><td>${l.quantity}</td><td>${money(l.unitPrice)}</td><td>${money(l.lineTotal)}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">No linked medicine purchases yet. Select this patient at POS before completing a sale.</td></tr>'}</tbody></table></div></div></div>`;document.body.appendChild(host);document.getElementById('cmClose').onclick=()=>host.remove()}catch(err){toast(err.message,'error')}}
+async function showCustomerMedicalRecord(id){if(!navigator.onLine)return toast('Medical record history requires server connection.','warning');try{const d=await api(`/api/customers/${id}/history?tenantId=${appState.session.tenantId}`),c=d.customer,saleMap=Object.fromEntries(d.sales.map(s=>[s.id,s]));const host=document.createElement('div');host.className='modal-backdrop';host.innerHTML=`<div class="modal wide"><div class="modal-head"><b>Patient Medical Record — ${esc(c.name)}</b><button class="close-btn" id="cmClose">×</button></div><div class="modal-body"><div class="profile-grid"><div class="profile-card"><h4>Patient Details</h4><div class="profile-line"><b>DOB:</b> ${c.dateOfBirth?fmtDate(c.dateOfBirth):'—'} &nbsp; <b>Sex:</b> ${esc(c.sex||'—')}</div><div class="profile-line"><b>Phone:</b> ${esc(c.phone||'—')}</div><div class="profile-line"><b>Email:</b> ${esc(c.email||'—')}</div><div class="profile-line"><b>Address:</b> ${esc(c.address||'—')}</div></div><div class="profile-card"><h4>Emergency Information</h4><div class="profile-line"><b>Contact:</b> ${esc(c.emergencyContactName||'—')}</div><div class="profile-line"><b>Relationship:</b> ${esc(c.emergencyContactRelationship||'—')}</div><div class="profile-line"><b>Phone:</b> ${esc(c.emergencyContactPhone||'—')}</div><div class="profile-line"><b>Doctor:</b> ${esc(c.doctorName||'—')} ${esc(c.doctorPhone||'')}</div></div><div class="profile-card"><h4>Medical Information</h4><div class="profile-line"><b>Allergies:</b> ${esc(c.allergies||'None recorded')}</div><div class="profile-line"><b>Conditions:</b> ${esc(c.medicalConditions||'None recorded')}</div><div class="profile-line"><b>Current Medicines:</b> ${esc(c.currentMedications||'None recorded')}</div></div><div class="profile-card"><h4>Notes</h4><div class="profile-line">${esc(c.notes||'No notes')}</div></div></div><h3>Complete Medicine Purchase History</h3><div class="table-wrap history-table"><table class="data-table"><thead><tr><th>Date</th><th>Invoice</th><th>Medicine</th><th>Batch</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead><tbody>${d.lines.map(l=>{const s=saleMap[l.saleId]||{};return `<tr><td>${fmtDate(s.createdUtc)}</td><td>${esc(s.invoiceNo||'')}</td><td><b>${esc(l.productName)}</b>${l.directions?`<br><small class="directions-line">${esc(l.directions)}</small>`:''}</td><td>${esc(l.batchNo)}</td><td>${l.quantity}</td><td>${money(l.unitPrice)}</td><td>${money(l.lineTotal)}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">No linked medicine purchases yet. Select this patient at POS before completing a sale.</td></tr>'}</tbody></table></div></div></div>`;document.body.appendChild(host);document.getElementById('cmClose').onclick=()=>host.remove()}catch(err){toast(err.message,'error')}}
 
 /* PURPOSE: Render POS with patient selection so completed invoices feed patient medicine history. REFERENCE: CustomerId is saved on Sale. */
 function posView(){
   const selected=appState.products.find(p=>p.id===appState.selectedProductId),productBatches=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)),subtotal=appState.cart.reduce((s,l)=>s+l.quantity*l.unitPrice,0);
-  return `<div class="page-header"><div><h1>POS Sales</h1><p>Fast billing with patient, batch & expiry control</p></div><span class="sync-pill">${navigator.onLine?'🟢 Online sync ready':'🟠 Offline queue ready'}</span></div>${navigator.onLine?'':'<div class="offline-banner">Offline sale mode: invoices are saved locally first and synchronized later.</div>'}<div class="pos-grid"><div class="panel product-search-panel"><div class="panel-head"><span>Find Medicine</span><span class="badge blue">F2 Search</span></div><div class="pos-search"><input id="posSearch" placeholder="Scan barcode or search medicine..."><button class="btn-primary" id="posSearchBtn">Search</button></div><div class="product-list">${appState.products.slice(0,1000).map(p=>`<div class="product-row ${p.id===appState.selectedProductId?'selected':''}" data-product-id="${p.id}"><div><b>${esc(p.name)}</b><br><small>${esc(p.genericName||'')}</small></div><div>${esc(p.strength||'')}</div><div>${money(p.sellingPrice)}</div><div>${stockForProduct(p.id)}</div></div>`).join('')}</div>${selected?`<div class="medicine-card"><img class="product-photo" src="${esc(selected.imageUrl||'/images/medicine-placeholder.svg')}" onerror="this.src='/images/medicine-placeholder.svg'"><div><b>${esc(selected.name)}</b><div class="muted">${esc(selected.category||'')} • ${esc(selected.brand||'')}</div></div></div><div class="batch-box"><b>Select Batch (FEFO)</b><div class="batch-buttons">${productBatches.map(b=>`<button class="batch-btn ${b.id===appState.selectedBatchId?'active':''}" data-batch-id="${b.id}">${esc(b.batchNo)} • ${fmtDate(b.expiryDate)} • Qty ${b.quantity}</button>`).join('')||'<span class="danger-text">No valid batch stock.</span>'}</div><div style="margin-top:10px"><button class="btn-success" id="addToCartBtn" ${appState.selectedBatchId?'':'disabled'}>+ Add Selected Batch</button></div></div>`:''}</div><div class="panel"><div class="panel-head"><span>Cart</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear</button></div><div class="panel-body"><div class="patient-select"><select id="posCustomer"><option value="">Walk-in Customer</option>${appState.customers.map(c=>`<option value="${c.id}" ${Number(appState.selectedCustomerId)===c.id?'selected':''}>${esc(c.name)} — ${esc(c.phone||'')}</option>`).join('')}</select><button class="btn-light" id="quickAddPatientBtn">+ Patient</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${appState.cart.map((l,i)=>`<tr><td>${esc(l.productName)}</td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td><button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Select a medicine to begin.</td></tr>'}</tbody></table></div><div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div><div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div><div class="checkout-actions"><button class="btn-light" id="holdSaleBtn">Hold</button><button class="btn-light" id="printBtn">Print</button><button class="btn-success btn-lg" id="completeSaleBtn" ${appState.cart.length?'':'disabled'}>Complete Sale</button></div></div></div></div>`;
+  return `<div class="page-header"><div><h1>POS Sales</h1><p>Fast billing with patient, batch & expiry control</p></div><span class="sync-pill">${navigator.onLine?'🟢 Online sync ready':'🟠 Offline queue ready'}</span></div>${navigator.onLine?'':'<div class="offline-banner">Offline sale mode: invoices are saved locally first and synchronized later.</div>'}<div class="pos-grid"><div class="panel product-search-panel"><div class="panel-head"><span>Find Medicine</span><span class="badge blue">F2 Search</span></div><div class="pos-search"><input id="posSearch" placeholder="Scan barcode or search medicine..."><button class="btn-primary" id="posSearchBtn">Search</button></div><div class="product-list">${appState.products.slice(0,1000).map(p=>`<div class="product-row ${p.id===appState.selectedProductId?'selected':''}" data-product-id="${p.id}"><div><b>${esc(p.name)}</b><br><small>${esc(p.genericName||'')}</small></div><div>${esc(p.strength||'')}</div><div>${money(p.sellingPrice)}</div><div>${stockForProduct(p.id)}</div></div>`).join('')}</div>${selected?`<div class="medicine-card"><img class="product-photo" src="${esc(selected.imageUrl||'/images/medicine-placeholder.svg')}" onerror="this.src='/images/medicine-placeholder.svg'"><div><b>${esc(selected.name)}</b><div class="muted">${esc(selected.category||'')} • ${esc(selected.brand||'')}</div></div></div><div class="batch-box"><b>Select Batch (FEFO)</b><div class="batch-buttons">${productBatches.map(b=>`<button class="batch-btn ${b.id===appState.selectedBatchId?'active':''}" data-batch-id="${b.id}">${esc(b.batchNo)} • ${fmtDate(b.expiryDate)} • Qty ${b.quantity}</button>`).join('')||'<span class="danger-text">No valid batch stock.</span>'}</div><div style="margin-top:10px"><button class="btn-success" id="addToCartBtn" ${appState.selectedBatchId?'':'disabled'}>+ Add Selected Batch</button></div></div>`:''}</div><div class="panel"><div class="panel-head"><span>Cart</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear</button></div><div class="panel-body"><div class="patient-select"><select id="posCustomer"><option value="">Walk-in Customer</option>${appState.customers.map(c=>`<option value="${c.id}" ${Number(appState.selectedCustomerId)===c.id?'selected':''}>${esc(c.name)} — ${esc(c.phone||'')}</option>`).join('')}</select><button class="btn-light" id="quickAddPatientBtn">+ Patient</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>${appState.cart.map((l,i)=>`<tr><td>${esc(l.productName)}</td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button> `:'' }<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Select a medicine to begin.</td></tr>'}</tbody></table></div><div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div><div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div><div class="checkout-actions"><button class="btn-light" id="holdSaleBtn">Hold</button><button class="btn-light" id="printBtn">Print</button><button class="btn-success btn-lg" id="completeSaleBtn" ${appState.cart.length?'':'disabled'}>Complete Sale</button></div></div></div></div>`;
 }
 
 /* PURPOSE: Wire patient-aware POS while retaining offline-first behavior. REFERENCE: selectedCustomerId is included in queued sale. */
 function bindPos(){
-  const search=document.getElementById('posSearch'),filter=()=>{const q=(search?.value||'').toLowerCase();document.querySelectorAll('.product-row').forEach(row=>{const p=appState.products.find(x=>String(x.id)===row.dataset.productId);row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none'})};search?.addEventListener('input',filter);document.getElementById('posSearchBtn')?.addEventListener('click',filter);document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{appState.selectedProductId=Number(row.dataset.productId);const first=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate))[0];appState.selectedBatchId=first?.id||null;render()});document.querySelectorAll('[data-batch-id]').forEach(btn=>btn.onclick=()=>{appState.selectedBatchId=Number(btn.dataset.batchId);render()});document.getElementById('addToCartBtn')?.addEventListener('click',addSelectedBatchToCart);document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render()});document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render()});document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render()});document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render()});document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null});document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);document.getElementById('printBtn')?.addEventListener('click',()=>window.print());document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{if(!appState.cart.length)return toast('Cart is empty.','warning');appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));appState.cart=[];render();toast('Sale held locally.')});
+  const search=document.getElementById('posSearch'),filter=()=>{const q=(search?.value||'').toLowerCase();document.querySelectorAll('.product-row').forEach(row=>{const p=appState.products.find(x=>String(x.id)===row.dataset.productId);row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none'})};search?.addEventListener('input',filter);document.getElementById('posSearchBtn')?.addEventListener('click',filter);document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{appState.selectedProductId=Number(row.dataset.productId);const first=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate))[0];appState.selectedBatchId=first?.id||null;render()});document.querySelectorAll('[data-batch-id]').forEach(btn=>btn.onclick=()=>{appState.selectedBatchId=Number(btn.dataset.batchId);render()});document.getElementById('addToCartBtn')?.addEventListener('click',addSelectedBatchToCart);document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render()});document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render()});document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render()});document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render()});document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null});document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);document.getElementById('printBtn')?.addEventListener('click',()=>window.print());document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{if(!appState.cart.length)return toast('Cart is empty.','warning');appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));appState.cart=[];render();toast('Sale held locally.')});
 }
 
 /* PURPOSE: Complete a patient-aware sale by saving locally first, then synchronizing. REFERENCE: Offline-first transaction guarantee plus patient history linkage. */
@@ -1083,7 +1083,7 @@ function posView(){
       <div class="panel-body">
         <div class="patient-select"><select id="posCustomer"><option value="">Walk-in Customer</option>${appState.customers.map(c=>`<option value="${c.id}" ${Number(appState.selectedCustomerId)===c.id?'selected':''}>${esc(c.name)} — ${esc(c.phone||'')}</option>`).join('')}</select><button class="btn-light" id="quickAddPatientBtn">+ Patient</button></div>
         <div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>
-        ${appState.cart.map((l,i)=>`<tr><td><b>${esc(l.productName)}</b></td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td><button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Click a medicine to select its batch.</td></tr>'}
+        ${appState.cart.map((l,i)=>`<tr><td><b>${esc(l.productName)}</b>${l.directions?`<br><small class="directions-line">${esc(l.directions)}</small>`:''}</td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button> `:'' }<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Click a medicine to select its batch.</td></tr>'}
         </tbody></table></div>
         <div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div>
         <div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div>
@@ -1124,7 +1124,7 @@ function bindPos(){
   document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
   document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null;});
   document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
-  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
   document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
   document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
     if(!appState.cart.length)return toast('Cart is empty.','warning');
@@ -1376,4 +1376,451 @@ function addBatchToCart(product,batch,quantity=1){
   appState.selectedBatchId=batch.id;
   toast(`${requested} × ${product.name} • batch ${batch.batchNo} added to cart.`,'success');
   render();
+}
+
+
+/* ============================================================================
+ PRODUCT DIRECTIONS / DISPENSING LABEL WORKFLOW
+ PURPOSE:
+ Lets a pharmacist mark a medicine so POS asks for authorized directions after
+ quantity selection and can print those directions on a small dispensing label.
+ REFERENCE:
+ Direction templates are convenience text only. They do not calculate or
+ recommend a dose and must match the prescription or pharmacist-authorized use.
+============================================================================ */
+
+const DIRECTIONS_META_START='[[PHARMACARE_DIRECTIONS]]';
+const DIRECTIONS_META_END='[[/PHARMACARE_DIRECTIONS]]';
+
+/*
+ PURPOSE:
+ Reads the hidden directions settings stored inside Product.Notes while returning
+ the pharmacist's normal free-text notes separately.
+ REFERENCE:
+ Reusing Product.Notes avoids forcing an MSSQL schema reset for this feature.
+*/
+function parseProductNotes(rawNotes){
+  const raw=String(rawNotes||'');
+  const start=raw.indexOf(DIRECTIONS_META_START);
+  const end=raw.indexOf(DIRECTIONS_META_END);
+  if(start<0||end<0||end<start){
+    return {enabled:false,defaultDirections:'',userNotes:raw};
+  }
+  let meta={};
+  try{
+    const json=raw.slice(start+DIRECTIONS_META_START.length,end);
+    meta=JSON.parse(json);
+  }catch{}
+  const before=raw.slice(0,start);
+  const after=raw.slice(end+DIRECTIONS_META_END.length);
+  return {
+    enabled:Boolean(meta.enabled),
+    defaultDirections:String(meta.defaultDirections||''),
+    userNotes:(before+after).trim()
+  };
+}
+
+/*
+ PURPOSE:
+ Combines normal product notes with the directions settings in one database field.
+ REFERENCE:
+ The metadata block remains readable JSON and does not affect existing APIs.
+*/
+function buildProductNotes(userNotes,enabled,defaultDirections){
+  const meta=JSON.stringify({
+    enabled:Boolean(enabled),
+    defaultDirections:String(defaultDirections||'').trim()
+  });
+  const notes=String(userNotes||'').trim();
+  return `${DIRECTIONS_META_START}${meta}${DIRECTIONS_META_END}${notes?'\n'+notes:''}`;
+}
+
+/*
+ PURPOSE:
+ Returns whether POS should prompt for directions for a product.
+ REFERENCE:
+ Imported/older products without metadata simply return disabled.
+*/
+function productDirectionsSettings(product){
+  return parseProductNotes(product?.notes||'');
+}
+
+/*
+ PURPOSE:
+ Opens a clean New/Edit Product form with an optional POS directions-label setting.
+ REFERENCE:
+ The directions setting is stored inside Product.Notes so the current MSSQL schema
+ remains compatible.
+*/
+function showProductModal(product = null) {
+  const directionInfo=productDirectionsSettings(product);
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+  <div class="modal wide">
+    <div class="modal-head">
+      <b>${product?'Edit Medicine':'New Medicine Item'}</b>
+      <button class="close-btn" id="closeProductModal">×</button>
+    </div>
+    <form id="productForm">
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field"><label>Product Name *</label><input id="pName" required value="${esc(product?.name||'')}"></div>
+          <div class="field"><label>Generic Name</label><input id="pGeneric" value="${esc(product?.genericName||'')}"></div>
+          <div class="field"><label>Strength</label><input id="pStrength" value="${esc(product?.strength||'')}"></div>
+          <div class="field"><label>Dosage Form</label><input id="pDosageForm" placeholder="Tablet, capsule, syrup..." value="${esc(product?.dosageForm||'')}"></div>
+          <div class="field"><label>Pack Size</label><input id="pPack" value="${esc(product?.packSize||'')}"></div>
+          <div class="field"><label>Category</label><input id="pCategory" value="${esc(product?.category||'')}"></div>
+          <div class="field"><label>Brand</label><input id="pBrand" value="${esc(product?.brand||'')}"></div>
+          <div class="field"><label>Manufacturer</label><input id="pManufacturer" value="${esc(product?.manufacturer||'')}"></div>
+          <div class="field"><label>Barcode</label><input id="pBarcode" value="${esc(product?.barcode||'')}"></div>
+          <div class="field"><label>RxNorm ID</label><input id="pRxNorm" value="${esc(product?.rxNormId||'')}"></div>
+          <div class="field"><label>Purchase Price</label><input id="pCost" type="number" step="0.01" min="0" value="${product?.purchasePrice??0}"></div>
+          <div class="field"><label>Selling Price</label><input id="pSell" type="number" step="0.01" min="0" value="${product?.sellingPrice??0}"></div>
+          <div class="field full"><label>Photo URL</label><input id="pImage" placeholder="https://... or /images/..." value="${esc(product?.imageUrl||'/images/medicine-placeholder.svg')}"></div>
+
+          <div class="field full directions-product-box">
+            <label class="check-row">
+              <input id="pDirectionsEnabled" type="checkbox" ${directionInfo.enabled?'checked':''}>
+              <span><b>Ask for / print directions to use at POS</b><small>After quantity is entered, show a “How to Use” screen before adding to cart.</small></span>
+            </label>
+            <div class="field" style="margin:10px 0 0">
+              <label>Default Directions (optional)</label>
+              <input id="pDefaultDirections" placeholder="Example: Take 1 at night" value="${esc(directionInfo.defaultDirections)}" ${directionInfo.enabled?'':'disabled'}>
+            </div>
+          </div>
+
+          <div class="field full"><label>Notes</label><input id="pNotes" value="${esc(directionInfo.userNotes)}"></div>
+          <div class="field"><label><input id="pTrack" type="checkbox" ${product?.trackBatchExpiry===false?'':'checked'} style="width:auto"> Track Batch & Expiry</label></div>
+          <div class="field"><label><input id="pRx" type="checkbox" ${product?.requiresPrescription?'checked':''} style="width:auto"> Requires Prescription</label></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-light" id="cancelProduct">Cancel</button>
+        <button class="btn-success" type="submit">Save Medicine</button>
+      </div>
+    </form>
+  </div>`;
+  document.body.appendChild(host);
+
+  const close=()=>host.remove();
+  const enabled=document.getElementById('pDirectionsEnabled');
+  const defaultInput=document.getElementById('pDefaultDirections');
+
+  document.getElementById('closeProductModal').onclick=close;
+  document.getElementById('cancelProduct').onclick=close;
+  enabled.onchange=()=>{
+    defaultInput.disabled=!enabled.checked;
+    if(enabled.checked)defaultInput.focus();
+  };
+
+  document.getElementById('productForm').onsubmit=async e=>{
+    e.preventDefault();
+    if(!navigator.onLine)return toast('Saving a medicine requires internet.','warning');
+
+    const body={
+      tenantId:appState.session.tenantId,
+      name:document.getElementById('pName').value.trim(),
+      genericName:document.getElementById('pGeneric').value.trim(),
+      strength:document.getElementById('pStrength').value.trim(),
+      dosageForm:document.getElementById('pDosageForm').value.trim(),
+      packSize:document.getElementById('pPack').value.trim(),
+      category:document.getElementById('pCategory').value.trim(),
+      brand:document.getElementById('pBrand').value.trim(),
+      manufacturer:document.getElementById('pManufacturer').value.trim(),
+      barcode:document.getElementById('pBarcode').value.trim(),
+      rxNormId:document.getElementById('pRxNorm').value.trim(),
+      imageUrl:document.getElementById('pImage').value.trim(),
+      notes:buildProductNotes(
+        document.getElementById('pNotes').value.trim(),
+        enabled.checked,
+        defaultInput.value.trim()
+      ),
+      sellingPrice:Number(document.getElementById('pSell').value||0),
+      purchasePrice:Number(document.getElementById('pCost').value||0),
+      trackBatchExpiry:document.getElementById('pTrack').checked,
+      requiresPrescription:document.getElementById('pRx').checked
+    };
+
+    try{
+      await api(product?`/api/products/${product.id}`:'/api/products',{
+        method:product?'PUT':'POST',
+        body:JSON.stringify(body)
+      });
+      await refreshSnapshot();
+      close();
+      render();
+      toast('Medicine saved.');
+    }catch(err){
+      toast(err.message,'error');
+    }
+  };
+}
+
+/*
+ PURPOSE:
+ Replaces the quantity-confirm action so products marked for directions open the
+ How to Use popup before entering the cart.
+ REFERENCE:
+ Products without the setting enabled continue directly to Add to Cart.
+*/
+function showQuantityModal(product,batch){
+  if(!product||!batch)return;
+
+  const existing=appState.cart.filter(x=>x.batchId===batch.id)
+    .reduce((sum,x)=>sum+Number(x.quantity||0),0);
+  const available=Math.max(0,Number(batch.quantity)-existing);
+
+  if(available<=0){
+    toast('All available stock from this batch is already in the cart.','warning');
+    return;
+  }
+
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+    <div class="modal qty-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Enter Quantity</b>
+          <div class="muted">${esc(product.name)} • Batch ${esc(batch.batchNo)}</div>
+        </div>
+        <button class="close-btn" id="qtyModalClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="qty-stock-summary">
+          <div><span>Available</span><strong>${available}</strong></div>
+          <div><span>Expiry</span><strong>${fmtDate(batch.expiryDate)}</strong></div>
+          <div><span>Unit Price</span><strong>${money(batch.sellingPrice)}</strong></div>
+        </div>
+        <div class="qty-picker">
+          <button type="button" class="qty-step" id="qtyMinus">−</button>
+          <input id="qtyInput" type="number" min="1" max="${available}" value="1" inputmode="numeric">
+          <button type="button" class="qty-step" id="qtyPlus">+</button>
+        </div>
+        <div class="qty-total">Line Total: <strong id="qtyLineTotal">${money(batch.sellingPrice)}</strong></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="qtyModalCancel">Cancel</button>
+        <button class="btn-success btn-lg" id="qtyModalConfirm">Continue</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+
+  const input=document.getElementById('qtyInput');
+  const close=()=>host.remove();
+  const normalize=()=>{
+    let value=Math.floor(Number(input.value)||1);
+    value=Math.max(1,Math.min(available,value));
+    input.value=String(value);
+    const total=document.getElementById('qtyLineTotal');
+    if(total)total.textContent=money(value*Number(batch.sellingPrice));
+    return value;
+  };
+
+  document.getElementById('qtyModalClose').onclick=close;
+  document.getElementById('qtyModalCancel').onclick=close;
+  document.getElementById('qtyMinus').onclick=()=>{input.value=String(normalize()-1);normalize();};
+  document.getElementById('qtyPlus').onclick=()=>{input.value=String(normalize()+1);normalize();};
+  input.oninput=normalize;
+  input.onkeydown=e=>{if(e.key==='Enter')document.getElementById('qtyModalConfirm').click();};
+  document.getElementById('qtyModalConfirm').onclick=()=>{
+    const qty=normalize();
+    const settings=productDirectionsSettings(product);
+    close();
+    if(settings.enabled){
+      showDirectionsModal(product,batch,qty,settings.defaultDirections);
+    }else{
+      addBatchToCart(product,batch,qty,'');
+    }
+  };
+  setTimeout(()=>{input.focus();input.select();},0);
+}
+
+/*
+ PURPOSE:
+ Shows authorized direction templates after quantity selection.
+ REFERENCE:
+ Templates are examples only; the pharmacist must ensure the text matches the
+ prescription or authorized directions for that patient and medicine.
+*/
+function showDirectionsModal(product,batch,quantity,defaultDirections=''){
+  const templates=[
+    'Take 1 at night',
+    'Take 1 once daily',
+    'Take 1 three times daily',
+    'Take 1 every 3 hours',
+    'Take 1 in the morning',
+    'Take 1 twice daily'
+  ];
+
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+    <div class="modal directions-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">How to Use</b>
+          <div class="muted">${esc(product.name)} • Qty ${quantity} • Batch ${esc(batch.batchNo)}</div>
+        </div>
+        <button class="close-btn" id="directionsClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="directions-warning">
+          <b>Use the prescription / authorized directions.</b>
+          The buttons below are text templates only and do not determine the correct dose.
+        </div>
+        <label class="directions-label">Quick Directions</label>
+        <div class="direction-template-grid">
+          ${templates.map(text=>`<button type="button" class="direction-template" data-direction-template="${esc(text)}">${esc(text)}</button>`).join('')}
+        </div>
+        <div class="field">
+          <label>Directions to Print</label>
+          <textarea id="directionsText" rows="3" placeholder="Enter the exact authorized directions...">${esc(defaultDirections)}</textarea>
+        </div>
+        <label class="check-row print-directions-check">
+          <input id="printDirectionsNow" type="checkbox" checked>
+          <span><b>Print directions label after adding to cart</b><small>You can also reprint the label from the cart.</small></span>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="directionsBack">Back</button>
+        <button class="btn-light" id="directionsCancel">Cancel</button>
+        <button class="btn-success btn-lg" id="directionsConfirm">Add to Cart</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+
+  const textarea=document.getElementById('directionsText');
+  const close=()=>host.remove();
+
+  document.getElementById('directionsClose').onclick=close;
+  document.getElementById('directionsCancel').onclick=close;
+  document.getElementById('directionsBack').onclick=()=>{
+    close();
+    showQuantityModal(product,batch);
+  };
+
+  host.querySelectorAll('[data-direction-template]').forEach(btn=>btn.onclick=()=>{
+    textarea.value=btn.dataset.directionTemplate;
+    textarea.focus();
+  });
+
+  document.getElementById('directionsConfirm').onclick=()=>{
+    const directions=textarea.value.trim();
+    if(!directions){
+      toast('Enter the authorized directions to use.','warning');
+      textarea.focus();
+      return;
+    }
+
+    const shouldPrint=document.getElementById('printDirectionsNow').checked;
+    const line=addBatchToCart(product,batch,quantity,directions);
+    if(!line)return;
+    close();
+
+    if(shouldPrint){
+      printDirectionLabel(line);
+    }
+  };
+
+  setTimeout(()=>{textarea.focus();textarea.select();},0);
+}
+
+/*
+ PURPOSE:
+ Adds the selected quantity and directions to the cart.
+ REFERENCE:
+ Lines with different directions are kept separate even when they use the same batch.
+*/
+function addBatchToCart(product,batch,quantity=1,directions=''){
+  if(!product||!batch)return null;
+
+  const requested=Math.max(1,Math.floor(Number(quantity)||1));
+  const normalizedDirections=String(directions||'').trim();
+
+  const totalAlreadyInCart=appState.cart
+    .filter(x=>x.batchId===batch.id)
+    .reduce((sum,x)=>sum+Number(x.quantity||0),0);
+
+  const maxQty=Number(batch.quantity);
+  if(totalAlreadyInCart+requested>maxQty){
+    toast(`Only ${Math.max(0,maxQty-totalAlreadyInCart)} more unit(s) are available in this batch.`,'warning');
+    return null;
+  }
+
+  let line=appState.cart.find(x=>
+    x.batchId===batch.id &&
+    String(x.directions||'').trim()===normalizedDirections
+  );
+
+  if(line){
+    line.quantity+=requested;
+  }else{
+    line={
+      batchId:batch.id,
+      productId:product.id,
+      productName:product.name,
+      batchNo:batch.batchNo,
+      expiryDate:batch.expiryDate,
+      unitPrice:Number(batch.sellingPrice),
+      quantity:requested,
+      maxQty:maxQty,
+      directions:normalizedDirections
+    };
+    appState.cart.push(line);
+  }
+
+  appState.selectedBatchId=batch.id;
+  toast(`${requested} × ${product.name} • batch ${batch.batchNo} added to cart.`,'success');
+  render();
+  return line;
+}
+
+/*
+ PURPOSE:
+ Prints a compact medicine directions label from a cart line.
+ REFERENCE:
+ Browser print is used so no printer SDK is required; a label printer can be
+ selected in the normal print dialog.
+*/
+function printDirectionLabel(line){
+  if(!line?.directions){
+    toast('This cart line has no directions to print.','warning');
+    return;
+  }
+
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'Pharmacy';
+  const printWindow=window.open('','_blank','width=720,height=520');
+  if(!printWindow){
+    toast('Popup blocked. Allow popups to print the directions label.','warning');
+    return;
+  }
+
+  const html=`<!doctype html>
+  <html><head><meta charset="utf-8"><title>Directions Label</title>
+  <style>
+    @page{size:4in 2in;margin:.12in}
+    body{font-family:Arial,sans-serif;margin:0;color:#111}
+    .label{border:1.5px solid #111;padding:10px;height:1.7in;box-sizing:border-box}
+    .pharmacy{font-size:15px;font-weight:800;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:6px}
+    .drug{font-size:16px;font-weight:800}
+    .meta{font-size:10px;margin:3px 0;color:#333}
+    .directions{font-size:17px;font-weight:800;line-height:1.25;margin-top:8px}
+    .footer{font-size:9px;margin-top:8px}
+  </style></head><body>
+    <div class="label">
+      <div class="pharmacy">${esc(pharmacy)}</div>
+      <div class="drug">${esc(line.productName)}</div>
+      <div class="meta">${patient?`Patient: ${esc(patient.name)} • `:''}Batch: ${esc(line.batchNo)} • Exp: ${fmtDate(line.expiryDate)} • Qty: ${line.quantity}</div>
+      <div class="directions">${esc(line.directions)}</div>
+      <div class="footer">Use exactly as prescribed / authorized. Keep out of reach of children.</div>
+    </div>
+    <script>window.onload=()=>{window.print();setTimeout(()=>window.close(),400)};<\/script>
+  </body></html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
 }
