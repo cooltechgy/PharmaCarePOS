@@ -506,13 +506,32 @@ function settingsView() {
     body = `<div class="form-grid"><div class="field"><label>Invoice Prefix</label><input id="setPrefix" value="${esc(appState.settings?.invoicePrefix || 'INV')}"></div><div class="field"><label>Currency</label><select id="invoiceCurrency"><option value="USD" ${appState.settings?.currency==='USD'?'selected':''}>USD ($)</option><option value="GYD" ${appState.settings?.currency==='GYD'?'selected':''}>GYD ($)</option></select></div><div class="field full"><label>Invoice Preview</label><div class="section-note">${esc(appState.settings?.invoicePrefix || 'INV')}-000001 &nbsp; • &nbsp; ${esc(appState.settings?.pharmacyName || appState.session.tenantName)}</div></div></div><div class="checkout-actions"><button class="btn-success" id="saveInvoiceSettingsBtn">Save Invoice Settings</button><button class="btn-light" id="previewInvoiceBtn">Preview Invoice</button></div>`;
   } else if (tab === 'users') {
     body = `<div class="toolbar"><button class="btn-primary" id="loadSettingsUsersBtn">Refresh Users</button><button class="btn-success" id="addSettingsUserBtn">+ Add User</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>User</th><th>Display Name</th><th>Role</th><th>Branch</th></tr></thead><tbody>${(appState.settingsUsers||[]).map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.displayName)}</td><td>${esc(u.role)}</td><td>${u.branchId}</td></tr>`).join('') || '<tr><td colspan="4">Click Refresh Users to load users.</td></tr>'}</tbody></table></div>`;
+  } else if (tab === 'directions') {
+    const templates=getDirectionTemplates();
+    body = `
+      <div class="section-note"><b>Quick Directions:</b> These are reusable text templates shown in the POS “How to Use” popup. They do not determine the correct dose; staff must use the prescription or authorized directions.</div>
+      <div class="direction-settings-add">
+        <input id="newDirectionTemplate" placeholder="Example: Take 1 after meals">
+        <button class="btn-success" id="addDirectionTemplateBtn">+ Add Direction</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>#</th><th>Direction Template</th><th>Action</th></tr></thead>
+          <tbody>
+            ${templates.map((text,i)=>`<tr><td>${i+1}</td><td><b>${esc(text)}</b></td><td class="nowrap"><button class="btn-primary btn-xs" data-edit-direction="${i}">Edit</button> <button class="btn-danger btn-xs" data-delete-direction="${i}">Delete</button></td></tr>`).join('') || '<tr><td colspan="3" class="empty">No direction templates. Add one above.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      <div class="checkout-actions">
+        <button class="btn-light" id="resetDirectionTemplatesBtn">Reset Default Directions</button>
+      </div>`;
   } else if (tab === 'backup') {
     body = `<div class="section-note"><b>Local backup:</b> downloads the current cached catalogue, batches, customers, suppliers and settings as JSON. This is useful for emergency export but is not a replacement for SQL Server backups.</div><div class="checkout-actions"><button class="btn-primary" id="downloadBackupBtn">Download JSON Backup</button><button class="btn-light" id="downloadProductsCsvBtn">Export Products CSV</button></div>`;
   } else {
     body = `<div class="form-grid"><div class="field"><label>Connection</label><input value="${navigator.onLine?'Online':'Offline'}" disabled></div><div class="field"><label>Pending Offline Sales</label><input id="pendingSalesCount" value="Checking..." disabled></div></div><div class="checkout-actions"><button class="btn-primary" id="systemSyncBtn">Sync Now</button><button class="btn-light" id="clearOfflineCacheBtn">Refresh Local Cache</button></div>`;
   }
 
-  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
+  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('directions')}" data-settings-tab="directions">Directions</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
 }
 
 /*
@@ -888,6 +907,57 @@ async function bindSettings() {
   });
 
   document.getElementById('addSettingsUserBtn')?.addEventListener('click',()=>showAddSettingsUserModal());
+
+  /*
+   PURPOSE:
+   Wires Settings > Directions add, edit, delete and reset actions.
+   REFERENCE:
+   The POS How to Use popup reads these templates through getDirectionTemplates().
+  */
+  document.getElementById('addDirectionTemplateBtn')?.addEventListener('click',()=>{
+    const input=document.getElementById('newDirectionTemplate');
+    const value=input?.value.trim();
+    if(!value)return toast('Enter a direction template first.','warning');
+    const templates=getDirectionTemplates();
+    if(templates.some(x=>x.toLowerCase()===value.toLowerCase()))return toast('That direction already exists.','warning');
+    templates.push(value);
+    saveDirectionTemplates(templates);
+    render();
+    toast('Direction template added.');
+  });
+  document.getElementById('newDirectionTemplate')?.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      e.preventDefault();
+      document.getElementById('addDirectionTemplateBtn')?.click();
+    }
+  });
+  document.querySelectorAll('[data-edit-direction]').forEach(btn=>btn.addEventListener('click',()=>{
+    const index=Number(btn.dataset.editDirection);
+    const templates=getDirectionTemplates();
+    const current=templates[index];
+    const replacement=prompt('Edit direction template:',current);
+    if(replacement===null)return;
+    const value=replacement.trim();
+    if(!value)return toast('Direction cannot be blank.','warning');
+    templates[index]=value;
+    saveDirectionTemplates(templates);
+    render();
+    toast('Direction template updated.');
+  }));
+  document.querySelectorAll('[data-delete-direction]').forEach(btn=>btn.addEventListener('click',()=>{
+    const index=Number(btn.dataset.deleteDirection);
+    const templates=getDirectionTemplates();
+    if(index<0||index>=templates.length)return;
+    templates.splice(index,1);
+    saveDirectionTemplates(templates);
+    render();
+    toast('Direction template deleted.');
+  }));
+  document.getElementById('resetDirectionTemplatesBtn')?.addEventListener('click',()=>{
+    saveDirectionTemplates(defaultDirectionTemplates());
+    render();
+    toast('Default directions restored.');
+  });
 
   document.getElementById('downloadBackupBtn')?.addEventListener('click',()=>{
     const backup={exportedUtc:new Date().toISOString(),tenantId:appState.session.tenantId,branchId:appState.session.branchId,settings:appState.settings,products:appState.products,batches:appState.batches,customers:appState.customers,suppliers:appState.suppliers};
@@ -1645,14 +1715,7 @@ function showQuantityModal(product,batch){
  prescription or authorized directions for that patient and medicine.
 */
 function showDirectionsModal(product,batch,quantity,defaultDirections=''){
-  const templates=[
-    'Take 1 at night',
-    'Take 1 once daily',
-    'Take 1 three times daily',
-    'Take 1 every 3 hours',
-    'Take 1 in the morning',
-    'Take 1 twice daily'
-  ];
+  const templates=getDirectionTemplates();
 
   const host=document.createElement('div');
   host.className='modal-backdrop';
@@ -1823,4 +1886,68 @@ function printDirectionLabel(line){
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+}
+
+
+/* ============================================================================
+ SETTINGS > DIRECTIONS
+ PURPOSE:
+ Stores pharmacy-specific quick-direction text templates used by the POS How to Use
+ popup without requiring a database schema change.
+ REFERENCE:
+ Templates are text conveniences only; they are not dose recommendations.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Returns the default starter direction templates.
+ REFERENCE:
+ Reset Default Directions restores exactly this list.
+*/
+function defaultDirectionTemplates(){
+  return [
+    'Take 1 at night',
+    'Take 1 once daily',
+    'Take 1 three times daily',
+    'Take 1 every 3 hours',
+    'Take 1 in the morning',
+    'Take 1 twice daily'
+  ];
+}
+
+/*
+ PURPOSE:
+ Builds a tenant-specific browser storage key.
+ REFERENCE:
+ Different pharmacy tenants using the same browser do not share direction lists.
+*/
+function directionTemplateStorageKey(){
+  return `pharmacare.directionTemplates.${appState.session?.tenantId||'default'}`;
+}
+
+/*
+ PURPOSE:
+ Reads saved Settings > Directions templates.
+ REFERENCE:
+ Older installations automatically receive the default list on first use.
+*/
+function getDirectionTemplates(){
+  try{
+    const stored=JSON.parse(localStorage.getItem(directionTemplateStorageKey())||'null');
+    if(Array.isArray(stored)){
+      return stored.map(x=>String(x||'').trim()).filter(Boolean);
+    }
+  }catch{}
+  return defaultDirectionTemplates();
+}
+
+/*
+ PURPOSE:
+ Persists the current quick-direction list for this tenant.
+ REFERENCE:
+ The POS reads the same list immediately without requiring a page reload.
+*/
+function saveDirectionTemplates(templates){
+  const cleaned=(templates||[]).map(x=>String(x||'').trim()).filter(Boolean);
+  localStorage.setItem(directionTemplateStorageKey(),JSON.stringify(cleaned));
 }
