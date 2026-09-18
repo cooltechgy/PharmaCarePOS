@@ -447,3 +447,153 @@ function stockView() {
  Renders near-expiry and expired batch report with traffic-light status colors.
  REFERENCE:
  Days-left calculation is based on local calendar date for easy cashier interpretation.
+*/
+function expiryView() {
+  const rows=[...appState.batches].sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+  return `<div class="page-header"><div><h1>Expiry / Near Expiry Report</h1><p>Take action before stock becomes dead stock</p></div><button class="btn-primary" id="exportExpiryBtn">Export CSV</button></div><div class="panel"><div class="panel-body"><div class="toolbar"><select id="expiryFilter" style="width:180px"><option value="90">Next 3 Months</option><option value="180">Next 6 Months</option><option value="all">All</option></select></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch No.</th><th>Expiry Date</th><th>Days Left</th><th>Stock</th><th>Status</th></tr></thead><tbody>${rows.map(b=>{const p=appState.products.find(x=>x.id===b.productId);const dl=daysLeft(b.expiryDate);return `<tr><td><b>${esc(p?.name||'')}</b></td><td>${esc(b.batchNo)}</td><td class="${dl<=30?'danger-text':dl<=60?'warn-text':'good-text'}">${fmtDate(b.expiryDate)}</td><td>${dl}</td><td>${b.quantity}</td><td><span class="badge ${dl<0?'red':dl<=60?'orange':'green'}">${dl<0?'Expired':dl<=60?'Expiring Soon':'OK'}</span></td></tr>`}).join('')}</tbody></table></div></div></div>`;
+}
+
+/*
+ PURPOSE:
+ Renders customer records.
+ REFERENCE:
+ This screen mirrors the compact list style used in the reference pharmacy UI.
+*/
+function customersView() { return peopleTable('Customers','+ Add Customer',appState.customers,'customer'); }
+
+/*
+ PURPOSE:
+ Renders supplier records.
+ REFERENCE:
+ Supplier contacts are used by the purchase/GRN workflow.
+*/
+function suppliersView() { return peopleTable('Suppliers','+ Add Supplier',appState.suppliers,'supplier'); }
+
+/*
+ PURPOSE:
+ Produces the shared customer/supplier table layout.
+ REFERENCE:
+ A shared function reduces duplicated beginner code without hiding business behavior.
+*/
+function peopleTable(title,buttonLabel,items,type) {
+  return `<div class="page-header"><div><h1>${title}</h1><p>${type==='supplier'?'Purchase source directory':'Customer purchase directory'}</p></div><button class="btn-success" id="addPersonBtn">${buttonLabel}</button></div><div class="panel"><div class="panel-body"><div class="toolbar"><input class="grow" id="peopleSearch" placeholder="Search ${type}..."></div><div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Name</th>${type==='supplier'?'<th>Contact Person</th>':''}<th>Phone</th><th>Email</th><th>Action</th></tr></thead><tbody>${items.map((x,i)=>`<tr><td>${i+1}</td><td><b>${esc(x.name)}</b></td>${type==='supplier'?`<td>${esc(x.contactPerson)}</td>`:''}<td>${esc(x.phone)}</td><td>${esc(x.email)}</td><td><button class="btn-primary btn-xs" data-edit-person="${x.id}">Edit</button></td></tr>`).join('')}</tbody></table></div></div></div>`;
+}
+
+/*
+ PURPOSE:
+ Renders the colorful reports menu shown in the reference design.
+ REFERENCE:
+ Report tiles are navigation affordances; detailed report APIs can be added behind the same UI later.
+*/
+function reportsView() {
+  return `<div class="page-header"><div><h1>Reports</h1><p>Sales, purchase, stock and profitability</p></div></div><div class="report-cards"><div class="report-card green" data-report="sales"><span>📈 Sales Report</span><small>Daily, monthly, custom</small></div><div class="report-card blue" data-report="purchase"><span>🛒 Purchase Report</span><small>Supplier purchases</small></div><div class="report-card orange" data-report="stock"><span>📦 Stock Report</span><small>Current stock & valuation</small></div><div class="report-card red" data-report="expiry"><span>📅 Expiry Report</span><small>Near expiry / expired</small></div><div class="report-card purple" data-report="profit"><span>◔ Profit & Loss</span><small>Product-wise profitability</small></div><div class="report-card teal" data-report="customer"><span>👥 Customer Report</span><small>Purchase history</small></div></div>`;
+}
+
+/*
+ PURPOSE:
+ Renders tenant-level settings used by the visual reference.
+ REFERENCE:
+ This demo stores settings visually only; production should persist these per tenant in the server database.
+*/
+function settingsView() {
+  const tab = appState.settingsTab || 'general';
+  const active = name => tab===name ? ' active' : '';
+  let body = '';
+
+  if (tab === 'general') {
+    body = `<div class="form-grid"><div class="field"><label>Pharmacy Name</label><input id="setName" value="${esc(appState.settings?.pharmacyName || appState.session.tenantName)}"></div><div class="field"><label>Currency</label><select id="setCurrency"><option value="USD" ${appState.settings?.currency==='USD'?'selected':''}>USD ($)</option><option value="GYD" ${appState.settings?.currency==='GYD'?'selected':''}>GYD ($)</option></select></div><div class="field full"><label>Address</label><input id="setAddress" value="${esc(appState.settings?.address || 'Main Branch')}"></div><div class="field"><label>Expiry Alert Days</label><input id="setExpiryDays" type="number" min="1" value="${appState.settings?.expiryAlertDays || 60}"></div></div><div class="checkout-actions"><button class="btn-success" id="saveGeneralSettingsBtn">Save General Settings</button></div>`;
+  } else if (tab === 'invoice') {
+    body = `<div class="form-grid"><div class="field"><label>Invoice Prefix</label><input id="setPrefix" value="${esc(appState.settings?.invoicePrefix || 'INV')}"></div><div class="field"><label>Currency</label><select id="invoiceCurrency"><option value="USD" ${appState.settings?.currency==='USD'?'selected':''}>USD ($)</option><option value="GYD" ${appState.settings?.currency==='GYD'?'selected':''}>GYD ($)</option></select></div><div class="field full"><label>Invoice Preview</label><div class="section-note">${esc(appState.settings?.invoicePrefix || 'INV')}-000001 &nbsp; • &nbsp; ${esc(appState.settings?.pharmacyName || appState.session.tenantName)}</div></div></div><div class="checkout-actions"><button class="btn-success" id="saveInvoiceSettingsBtn">Save Invoice Settings</button><button class="btn-light" id="previewInvoiceBtn">Preview Invoice</button></div>`;
+  } else if (tab === 'users') {
+    body = `<div class="toolbar"><button class="btn-primary" id="loadSettingsUsersBtn">Refresh Users</button><button class="btn-success" id="addSettingsUserBtn">+ Add User</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>User</th><th>Display Name</th><th>Role</th><th>Branch</th></tr></thead><tbody>${(appState.settingsUsers||[]).map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.displayName)}</td><td>${esc(u.role)}</td><td>${u.branchId}</td></tr>`).join('') || '<tr><td colspan="4">Click Refresh Users to load users.</td></tr>'}</tbody></table></div>`;
+  } else if (tab === 'backup') {
+    body = `<div class="section-note"><b>Local backup:</b> downloads the current cached catalogue, batches, customers, suppliers and settings as JSON. This is useful for emergency export but is not a replacement for SQL Server backups.</div><div class="checkout-actions"><button class="btn-primary" id="downloadBackupBtn">Download JSON Backup</button><button class="btn-light" id="downloadProductsCsvBtn">Export Products CSV</button></div>`;
+  } else {
+    body = `<div class="form-grid"><div class="field"><label>Connection</label><input value="${navigator.onLine?'Online':'Offline'}" disabled></div><div class="field"><label>Pending Offline Sales</label><input id="pendingSalesCount" value="Checking..." disabled></div></div><div class="checkout-actions"><button class="btn-primary" id="systemSyncBtn">Sync Now</button><button class="btn-light" id="clearOfflineCacheBtn">Refresh Local Cache</button></div>`;
+  }
+
+  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
+}
+
+/*
+ PURPOSE:
+ Renders SaaS owner management with plans, tenants and sync status.
+ REFERENCE:
+ In production this area must be protected by a real PlatformAdmin authorization policy rather than the demo role check.
+*/
+function saasView() {
+  return `<div class="page-header"><div><h1>SaaS Management</h1><p>Tenants, subscription plans, branches, users and platform operations</p></div><button class="btn-primary" id="loadSaasBtn">Refresh SaaS Data</button></div><div id="saasData"><div class="cards"><div class="metric blue"><div class="label">Tenants</div><div class="value">—</div></div><div class="metric green"><div class="label">Active Subscriptions</div><div class="value">—</div></div><div class="metric orange"><div class="label">Offline Queues</div><div class="value">Local</div></div><div class="metric purple"><div class="label">Platform Status</div><div class="value">Online</div></div></div><div class="section-note">Use the Refresh button to load tenant and plan data from the SaaS API.</div></div>`;
+}
+
+/*
+ PURPOSE:
+ Attaches only the controls required by the currently visible screen.
+ REFERENCE:
+ This avoids querying non-existent elements and keeps each feature block easy to follow.
+*/
+function bindCurrentScreen() {
+  document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>{appState.view=btn.dataset.go;render();}));
+  if (appState.view === 'pos') bindPos();
+  if (appState.view === 'products') bindProducts();
+  if (appState.view === 'purchase') bindPurchase();
+  if (appState.view === 'stock') bindStock();
+  if (appState.view === 'expiry') bindExpiry();
+  if (appState.view === 'customers') bindPeople('customer');
+  if (appState.view === 'suppliers') bindPeople('supplier');
+  if (appState.view === 'reports') bindReports();
+  if (appState.view === 'settings') bindSettings();
+  if (appState.view === 'saas') bindSaas();
+}
+
+/*
+ PURPOSE:
+ Wires all POS interactions: product search, batch selection, quantities, payments and checkout.
+ REFERENCE:
+ Checkout always writes the transaction to IndexedDB before any network attempt.
+*/
+function bindPos() {
+  const search = document.getElementById('posSearch');
+  const filterProducts = () => {
+    const q = (search.value || '').toLowerCase();
+    document.querySelectorAll('.product-row').forEach(row => {
+      const p = appState.products.find(x=>String(x.id)===row.dataset.productId);
+      row.style.display = !q || `${p?.name} ${p?.genericName} ${p?.barcode}`.toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+  search?.addEventListener('input',filterProducts);
+  document.getElementById('posSearchBtn')?.addEventListener('click', filterProducts);
+  document.querySelectorAll('[data-product-id]').forEach(row=>row.addEventListener('click',()=>{appState.selectedProductId=Number(row.dataset.productId);const first=appState.batches.filter(b=>b.productId===appState.selectedProductId&&b.quantity>0&&daysLeft(b.expiryDate)>=0).sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate))[0];appState.selectedBatchId=first?.id||null;render();}));
+  document.querySelectorAll('[data-batch-id]').forEach(btn=>btn.addEventListener('click',()=>{appState.selectedBatchId=Number(btn.dataset.batchId);render();}));
+  document.getElementById('addToCartBtn')?.addEventListener('click',addSelectedBatchToCart);
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.addEventListener('click',()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();}));
+  document.querySelectorAll('.cart-qty').forEach(input=>input.addEventListener('change',()=>{const item=appState.cart[Number(input.dataset.cartIndex)];item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));render();}));
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.addEventListener('click',()=>{appState.paymentMethod=btn.dataset.payment;render();}));
+  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
+  document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{ if(!appState.cart.length) return toast('Cart is empty.','warning'); appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod}); localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales)); appState.cart=[]; render(); toast('Sale held locally.'); });
+}
+
+/*
+ PURPOSE:
+ Adds the selected batch to the cart or increments an existing matching cart line.
+ REFERENCE:
+ Quantity cannot exceed the cached batch quantity.
+*/
+function addSelectedBatchToCart() {
+  const batch=appState.batches.find(b=>b.id===appState.selectedBatchId);
+  const product=appState.products.find(p=>p.id===batch?.productId);
+  if (!batch || !product) return toast('Select a valid batch first.','error');
+  const existing=appState.cart.find(x=>x.batchId===batch.id);
+  if (existing) {
+    if (existing.quantity >= batch.quantity) return toast('No more cached stock in this batch.','warning');
+    existing.quantity += 1;
+  } else {
+    appState.cart.push({batchId:batch.id,productId:product.id,productName:product.name,batchNo:batch.batchNo,expiryDate:batch.expiryDate,unitPrice:Number(batch.sellingPrice),quantity:1,maxQty:Number(batch.quantity)});
+  }
+  render();
+}
+
+/*
+ PURPOSE:
+ Saves a sale locally first, updates cached stock, then attempts immediate server synchronization.
