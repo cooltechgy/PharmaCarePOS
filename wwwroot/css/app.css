@@ -98,3 +98,11 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 .direction-settings-add{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin:14px 0}
 .direction-settings-add input{min-width:0}
 @media(max-width:620px){.direction-settings-add{grid-template-columns:1fr}.direction-settings-add button{width:100%}}
+
+
+/* Settings > Printers */
+.printer-status-ok{color:#0c8f50;font-weight:800}
+.printer-status-warn{color:#c06b08;font-weight:800}
+@media(max-width:760px){
+  #testBillPrinterBtn,#testLabelPrinterBtn,#detectPrintersBtn,#savePrinterSettingsBtn{width:100%}
+}
