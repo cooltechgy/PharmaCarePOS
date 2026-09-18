@@ -58,3 +58,18 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .batch-modal-foot{justify-content:flex-end}
   .selected-batch-pill{width:100%;margin:0 0 6px}
 }
+
+
+/* POS quantity popup */
+.qty-modal{width:min(520px,94vw)}
+.qty-stock-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.qty-stock-summary>div{background:#f5f9fc;border:1px solid #e0eaf2;border-radius:10px;padding:12px;text-align:center}
+.qty-stock-summary span{display:block;font-size:11px;color:#71869a;font-weight:700;margin-bottom:5px}
+.qty-stock-summary strong{font-size:16px;color:#18324a}
+.qty-picker{display:grid;grid-template-columns:64px 1fr 64px;gap:12px;align-items:center;margin:10px auto 16px;max-width:360px}
+.qty-picker input{text-align:center;font-size:28px;font-weight:900;padding:12px}
+.qty-step{height:54px;border-radius:12px;background:#e8f2fb;color:#0e63b3;font-size:28px;line-height:1;padding:0}
+.qty-step:hover{background:#d8ebfb}
+.qty-total{text-align:center;font-size:16px;color:#4b6478}
+.qty-total strong{font-size:22px;color:#0c8f50;margin-left:6px}
+@media(max-width:520px){.qty-stock-summary{grid-template-columns:1fr}.qty-picker{grid-template-columns:56px 1fr 56px}}
