@@ -967,3 +967,23 @@ function bindProductV4Buttons(){
   document.querySelectorAll('[data-edit-product]').forEach(btn=>btn.onclick=()=>{const p=appState.products.find(x=>x.id===Number(btn.dataset.editProduct));if(p)showProductModal(p);});
   document.querySelectorAll('[data-product-history]').forEach(btn=>btn.onclick=()=>showProductSalesHistory(Number(btn.dataset.productHistory)));
   document.querySelectorAll('[data-product-photo]').forEach(btn=>btn.onclick=()=>enrichProductPhoto(Number(btn.dataset.productPhoto),btn));
+}
+
+/* PURPOSE: Open a clean New Item form immediately with no API request; also edits existing products. REFERENCE: User reported New Item hung while loading. */
+function showProductModal(product = null) {
+  const host=document.createElement('div'); host.className='modal-backdrop';
+  host.innerHTML=`<div class="modal wide"><div class="modal-head"><b>${product?'Edit Medicine':'New Medicine Item'}</b><button class="close-btn" id="closeProductModal">×</button></div><form id="productForm"><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>Product Name *</label><input id="pName" required value="${esc(product?.name||'')}"></div>
+    <div class="field"><label>Generic Name</label><input id="pGeneric" value="${esc(product?.genericName||'')}"></div>
+    <div class="field"><label>Strength</label><input id="pStrength" value="${esc(product?.strength||'')}"></div>
+    <div class="field"><label>Dosage Form</label><input id="pDosageForm" placeholder="Tablet, capsule, syrup..." value="${esc(product?.dosageForm||'')}"></div>
+    <div class="field"><label>Pack Size</label><input id="pPack" value="${esc(product?.packSize||'')}"></div>
+    <div class="field"><label>Category</label><input id="pCategory" value="${esc(product?.category||'')}"></div>
+    <div class="field"><label>Brand</label><input id="pBrand" value="${esc(product?.brand||'')}"></div>
+    <div class="field"><label>Manufacturer</label><input id="pManufacturer" value="${esc(product?.manufacturer||'')}"></div>
+    <div class="field"><label>Barcode</label><input id="pBarcode" value="${esc(product?.barcode||'')}"></div>
+    <div class="field"><label>RxNorm ID</label><input id="pRxNorm" value="${esc(product?.rxNormId||'')}"></div>
+    <div class="field"><label>Purchase Price</label><input id="pCost" type="number" step="0.01" min="0" value="${product?.purchasePrice??0}"></div>
+    <div class="field"><label>Selling Price</label><input id="pSell" type="number" step="0.01" min="0" value="${product?.sellingPrice??0}"></div>
+    <div class="field full"><label>Photo URL</label><input id="pImage" placeholder="https://... or /images/..." value="${esc(product?.imageUrl||'/images/medicine-placeholder.svg')}"></div>
+    <div class="field full"><label>Notes</label><input id="pNotes" value="${esc(product?.notes||'')}"></div>
