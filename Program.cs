@@ -298,3 +298,153 @@ app.MapGet("/api/saas", async (AppDbContext db) =>
  This powers the Edit button on the Products screen.
 */
 app.MapPut("/api/products/{id:int}", async (int id, ProductRequest request, AppDbContext db) =>
+{
+    var product = await db.Products.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId);
+    if (product is null) return Results.NotFound(new { message = "Product not found." });
+    product.Name = request.Name; product.GenericName = request.GenericName; product.Strength = request.Strength;
+    product.PackSize = request.PackSize; product.Category = request.Category; product.Brand = request.Brand;
+    product.Barcode = request.Barcode; product.SellingPrice = request.SellingPrice; product.PurchasePrice = request.PurchasePrice;
+    product.TrackBatchExpiry = request.TrackBatchExpiry; product.RequiresPrescription = request.RequiresPrescription;
+    product.RxNormId = request.RxNormId ?? string.Empty; product.ImageUrl = request.ImageUrl ?? string.Empty;
+    product.Manufacturer = request.Manufacturer ?? string.Empty; product.DosageForm = request.DosageForm ?? string.Empty; product.Notes = request.Notes ?? string.Empty;
+    await db.SaveChangesAsync();
+    return Results.Ok(product);
+});
+
+/*
+ PURPOSE:
+ Creates or updates a customer record for the tenant.
+ REFERENCE:
+ Used by Add Customer and Edit Customer dialogs.
+*/
+app.MapPost("/api/customers", async (CustomerRequest request, AppDbContext db) =>
+{
+    var customer = MapCustomer(new Customer { TenantId = request.TenantId }, request);
+    db.Customers.Add(customer); await db.SaveChangesAsync(); return Results.Ok(customer);
+});
+app.MapPut("/api/customers/{id:int}", async (int id, CustomerRequest request, AppDbContext db) =>
+{
+    var customer = await db.Customers.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId);
+    if (customer is null) return Results.NotFound(new { message = "Customer not found." });
+    MapCustomer(customer, request);
+    await db.SaveChangesAsync(); return Results.Ok(customer);
+});
+
+/*
+ PURPOSE:
+ Creates or updates a supplier record for purchase receiving.
+ REFERENCE:
+ Used by Add Supplier and Edit Supplier dialogs.
+*/
+app.MapPost("/api/suppliers", async (SupplierRequest request, AppDbContext db) =>
+{
+    var supplier = new Supplier { TenantId = request.TenantId, Name = request.Name, ContactPerson = request.ContactPerson, Phone = request.Phone, Email = request.Email };
+    db.Suppliers.Add(supplier); await db.SaveChangesAsync(); return Results.Ok(supplier);
+});
+app.MapPut("/api/suppliers/{id:int}", async (int id, SupplierRequest request, AppDbContext db) =>
+{
+    var supplier = await db.Suppliers.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId);
+    if (supplier is null) return Results.NotFound(new { message = "Supplier not found." });
+    supplier.Name = request.Name; supplier.ContactPerson = request.ContactPerson; supplier.Phone = request.Phone; supplier.Email = request.Email;
+    await db.SaveChangesAsync(); return Results.Ok(supplier);
+});
+
+/*
+ PURPOSE:
+ Lists and creates tenant users from Settings > Users.
+ REFERENCE:
+ This keeps the Settings users tab functional. Production systems should replace the demo plain-text password storage with ASP.NET Core Identity.
+*/
+app.MapGet("/api/users", async (int tenantId, AppDbContext db) =>
+{
+    var users = await db.Users.Where(x => x.TenantId == tenantId).OrderBy(x => x.Username)
+        .Select(x => new { x.Id, x.Username, x.DisplayName, x.Role, x.BranchId }).ToListAsync();
+    return Results.Ok(users);
+});
+app.MapPost("/api/users", async (UserCreateRequest request, AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+        return Results.BadRequest(new { message = "Username and password are required." });
+    var exists = await db.Users.AnyAsync(x => x.TenantId == request.TenantId && x.Username == request.Username);
+    if (exists) return Results.Conflict(new { message = "That username already exists." });
+    var branchOk = await db.Branches.AnyAsync(x => x.Id == request.BranchId && x.TenantId == request.TenantId);
+    if (!branchOk) return Results.BadRequest(new { message = "Branch does not belong to this tenant." });
+    var user = new AppUser { TenantId=request.TenantId, BranchId=request.BranchId, Username=request.Username.Trim(), PasswordHash=request.Password, DisplayName=request.DisplayName.Trim(), Role=string.IsNullOrWhiteSpace(request.Role)?"Cashier":request.Role.Trim() };
+    db.Users.Add(user); await db.SaveChangesAsync();
+    return Results.Ok(new { user.Id, user.Username, user.DisplayName, user.Role, user.BranchId });
+});
+
+/*
+ PURPOSE:
+ Returns recent invoices and sale lines for reports and receipt reprint.
+ REFERENCE:
+ The report screen uses this endpoint instead of decorative report cards only.
+*/
+app.MapGet("/api/reports/sales", async (int tenantId, int branchId, AppDbContext db) =>
+{
+    var sales = await db.Sales.Where(x => x.TenantId == tenantId && x.BranchId == branchId)
+        .OrderByDescending(x => x.CreatedUtc).Take(200).ToListAsync();
+    var saleIds = sales.Select(x => x.Id).ToList();
+    var lines = await db.SaleLines.Where(x => saleIds.Contains(x.SaleId)).ToListAsync();
+    return Results.Ok(new { sales, lines });
+});
+
+/*
+ PURPOSE:
+ Returns and persists tenant-level pharmacy settings.
+ REFERENCE:
+ The Settings Save button now writes to the central database rather than being visual only.
+*/
+app.MapGet("/api/settings", async (int tenantId, AppDbContext db) =>
+{
+    var value = await db.PharmacySettings.FirstOrDefaultAsync(x => x.TenantId == tenantId);
+    if (value is null) return Results.NotFound(new { message = "Settings not found." });
+    return Results.Ok(value);
+});
+app.MapPut("/api/settings", async (SettingsRequest request, AppDbContext db) =>
+{
+    var value = await db.PharmacySettings.FirstOrDefaultAsync(x => x.TenantId == request.TenantId);
+    if (value is null) { value = new PharmacySetting { TenantId = request.TenantId }; db.PharmacySettings.Add(value); }
+    value.PharmacyName = request.PharmacyName; value.Address = request.Address; value.Currency = request.Currency;
+    value.InvoicePrefix = request.InvoicePrefix; value.ExpiryAlertDays = request.ExpiryAlertDays;
+    var tenant = await db.Tenants.FirstOrDefaultAsync(x => x.Id == request.TenantId);
+    if (tenant is not null && !string.IsNullOrWhiteSpace(request.PharmacyName)) tenant.Name = request.PharmacyName;
+    await db.SaveChangesAsync(); return Results.Ok(value);
+});
+
+/*
+ PURPOSE:
+ Adjusts quantity for a single stock batch from the Stock View dialog.
+ REFERENCE:
+ This provides a controlled manual stock correction path for the demo.
+*/
+app.MapPut("/api/stock/{id:int}", async (int id, StockAdjustRequest request, AppDbContext db) =>
+{
+    var batch = await db.StockBatches.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId && x.BranchId == request.BranchId);
+    if (batch is null) return Results.NotFound(new { message = "Stock batch not found." });
+    batch.Quantity = Math.Max(0, request.Quantity);
+    batch.ExpiryDate = request.ExpiryDate;
+    batch.SellingPrice = request.SellingPrice;
+    await db.SaveChangesAsync(); return Results.Ok(batch);
+});
+
+
+
+/*
+ PURPOSE:
+ Returns one patient's complete profile plus medicine purchase history reconstructed from completed invoices.
+ REFERENCE:
+ Sale.CustomerId links invoices to the customer while SaleLine preserves the exact medicine, batch, quantity and price sold.
+*/
+app.MapGet("/api/customers/{id:int}/history", async (int id, int tenantId, AppDbContext db) =>
+{
+    var customer = await db.Customers.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
+    if (customer is null) return Results.NotFound(new { message = "Customer not found." });
+    var sales = await db.Sales.Where(x => x.TenantId == tenantId && x.CustomerId == id).OrderByDescending(x => x.CreatedUtc).ToListAsync();
+    var ids = sales.Select(x => x.Id).ToList();
+    var lines = await db.SaleLines.Where(x => ids.Contains(x.SaleId)).OrderByDescending(x => x.Id).ToListAsync();
+    return Results.Ok(new { customer, sales, lines });
+});
+
+/*
+ PURPOSE:
