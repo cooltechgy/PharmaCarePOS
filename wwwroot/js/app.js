@@ -897,3 +897,73 @@ async function bindSettings() {
     const rows=[['Name','Generic','Strength','Brand','Barcode','Selling Price'],...appState.products.map(p=>[p.name,p.genericName,p.strength,p.brand,p.barcode,p.sellingPrice])];
     downloadText('products.csv',rows.map(r=>r.map(csvCell).join(',')).join('\n'),'text/csv');
   });
+
+  document.getElementById('systemSyncBtn')?.addEventListener('click',async()=>{
+    try { await syncPendingSales(); await refreshSnapshot(); await loadDashboard(); toast('Sync completed.'); render(); }
+    catch(e){ toast(e.message,'error'); }
+  });
+  document.getElementById('clearOfflineCacheBtn')?.addEventListener('click',async()=>{
+    try { if(navigator.onLine) { await refreshSnapshot(); toast('Local cache refreshed from server.'); render(); } else toast('Internet is required to refresh the cache.','warning'); }
+    catch(e){ toast(e.message,'error'); }
+  });
+  if(appState.settingsTab==='system') updatePendingSalesCount();
+}
+
+/* PURPOSE: Opens the Settings > Users dialog and creates a real tenant user. REFERENCE: Settings Users tab must have working controls. */
+function showAddSettingsUserModal(){
+  const host=document.createElement('div'); host.className='modal-backdrop';
+  host.innerHTML=`<div class="modal"><div class="modal-head"><b>Add User</b><button class="close-btn" id="settingsUserClose">×</button></div><div class="modal-body"><div class="form-grid"><div class="field"><label>Username</label><input id="newSetUsername"></div><div class="field"><label>Password</label><input id="newSetPassword" type="password"></div><div class="field"><label>Display Name</label><input id="newSetDisplayName"></div><div class="field"><label>Role</label><select id="newSetRole"><option>Cashier</option><option>Pharmacist</option><option>Manager</option><option>Admin</option></select></div></div></div><div class="modal-foot"><button class="btn-light" id="settingsUserCancel">Cancel</button><button class="btn-success" id="settingsUserSave">Create User</button></div></div>`;
+  document.body.appendChild(host);
+  const close=()=>host.remove(); document.getElementById('settingsUserClose').onclick=close; document.getElementById('settingsUserCancel').onclick=close;
+  document.getElementById('settingsUserSave').onclick=async()=>{
+    try {
+      await api('/api/users',{method:'POST',body:JSON.stringify({tenantId:appState.session.tenantId,branchId:appState.session.branchId,username:document.getElementById('newSetUsername').value.trim(),password:document.getElementById('newSetPassword').value,displayName:document.getElementById('newSetDisplayName').value.trim(),role:document.getElementById('newSetRole').value})});
+      appState.settingsUsers=await api(`/api/users?tenantId=${appState.session.tenantId}`); close(); toast('User created.'); render();
+    } catch(e){ toast(e.message,'error'); }
+  };
+}
+
+/* PURPOSE: Downloads generated text without requiring a server round trip. REFERENCE: Used by Settings backup/export buttons. */
+function downloadText(filename,text,type){ const blob=new Blob([text],{type}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
+/* PURPOSE: Escapes one CSV value for safe spreadsheet export. REFERENCE: Settings product export. */
+function csvCell(value){ const s=String(value??''); return `"${s.replaceAll('"','""')}"`; }
+/* PURPOSE: Displays the number of locally queued offline sales. REFERENCE: Settings System tab. */
+async function updatePendingSalesCount(){ try { const pending=await PharmaOffline.all('pendingSales'); const el=document.getElementById('pendingSalesCount'); if(el)el.value=String(pending.length); } catch{} }
+
+/* ============================================================================
+ V4 FUNCTIONAL OVERRIDES
+ PURPOSE:
+ Fixes the New Item workflow and adds patient medical/emergency profiles,
+ patient medicine history, product sales history, RxNorm import and images.
+ REFERENCE:
+ These functions intentionally override earlier renderer/binder declarations.
+============================================================================ */
+
+/* PURPOSE: Render products with photo, RxNorm metadata, history and import tools. REFERENCE: V4 product-management requirement. */
+function productsView() {
+  return `<div class="page-header"><div><h1>Products / Medicines</h1><p>Medicine master, photos, pricing and item sales history</p></div><div class="header-actions"><button class="btn-success" id="importRxNormBtn">⬇ Import RxNorm Medicines</button><button class="btn-primary" id="addProductBtn">+ New Item</button></div></div>
+  <div class="import-note"><b>Medicine catalogue:</b> Import uses active RxNorm clinical/branded drug concepts. Imported medicines receive a placeholder image first; use <b>Find Photo</b> on a product to attempt a DailyMed label-media match.</div>
+  <div id="productImportStatus"></div>
+  <div class="panel"><div class="panel-body"><div class="toolbar"><input class="grow" id="productFilter" placeholder="Search product, generic, brand, RxNorm ID..."><button class="btn-light" id="exportProductsBtn">Export CSV</button></div>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Medicine</th><th>Strength</th><th>Brand</th><th>RxNorm</th><th>Price</th><th>Stock</th><th>Action</th></tr></thead><tbody id="productTableBody">${productRows(appState.products)}</tbody></table></div></div></div>`;
+}
+
+/* PURPOSE: Build product rows including image and working history/photo buttons. REFERENCE: Product item must have sales history and photo. */
+function productRows(products) {
+  return products.map((p,i)=>`<tr><td>${i+1}</td><td><img class="product-photo" src="${esc(p.imageUrl||'/images/medicine-placeholder.svg')}" onerror="this.src='/images/medicine-placeholder.svg'"><b>${esc(p.name)}</b><br><small class="muted">${esc(p.genericName||'')}</small></td><td>${esc(p.strength||p.dosageForm||'')}</td><td>${esc(p.brand||'')}</td><td>${esc(p.rxNormId||'—')}</td><td>${money(p.sellingPrice)}</td><td><span class="badge ${stockForProduct(p.id)<=10?'orange':'green'}">${stockForProduct(p.id)}</span></td><td class="nowrap"><button class="btn-primary btn-xs" data-edit-product="${p.id}">Edit</button> <button class="btn-purple btn-xs" data-product-history="${p.id}">Sales History</button> <button class="btn-light btn-xs" data-product-photo="${p.id}">Find Photo</button></td></tr>`).join('');
+}
+
+/* PURPOSE: Wire New Item without loading data, product history, photo enrichment and RxNorm import. REFERENCE: Fixes prior Event-object New Item bug. */
+function bindProducts() {
+  document.getElementById('addProductBtn')?.addEventListener('click', () => showProductModal());
+  document.getElementById('productFilter')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();document.getElementById('productTableBody').innerHTML=productRows(appState.products.filter(p=>`${p.name} ${p.genericName} ${p.brand} ${p.rxNormId}`.toLowerCase().includes(q))); bindProductV4Buttons();});
+  document.getElementById('exportProductsBtn')?.addEventListener('click',()=>downloadCsv('medicine-master.csv',[['Name','Generic','Strength','Brand','RxNormId','PurchasePrice','SellingPrice','Stock'],...appState.products.map(p=>[p.name,p.genericName,p.strength,p.brand,p.rxNormId,p.purchasePrice,p.sellingPrice,stockForProduct(p.id)])]));
+  document.getElementById('importRxNormBtn')?.addEventListener('click', importRxNormMedicines);
+  bindProductV4Buttons();
+}
+
+/* PURPOSE: Rebind dynamically generated product buttons. REFERENCE: Filtering replaces table HTML. */
+function bindProductV4Buttons(){
+  document.querySelectorAll('[data-edit-product]').forEach(btn=>btn.onclick=()=>{const p=appState.products.find(x=>x.id===Number(btn.dataset.editProduct));if(p)showProductModal(p);});
+  document.querySelectorAll('[data-product-history]').forEach(btn=>btn.onclick=()=>showProductSalesHistory(Number(btn.dataset.productHistory)));
+  document.querySelectorAll('[data-product-photo]').forEach(btn=>btn.onclick=()=>enrichProductPhoto(Number(btn.dataset.productPhoto),btn));
