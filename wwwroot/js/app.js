@@ -1860,6 +1860,8 @@ function addBatchToCart(product,batch,quantity=1,directions=''){
 
   const requested=Math.max(1,Math.floor(Number(quantity)||1));
   const normalizedDirections=String(directions||'').trim();
+  const selectedPatient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const patientFullName=selectedPatient?.name?.trim()||'';
 
   const totalAlreadyInCart=appState.cart
     .filter(x=>x.batchId===batch.id)
@@ -1873,7 +1875,8 @@ function addBatchToCart(product,batch,quantity=1,directions=''){
 
   let line=appState.cart.find(x=>
     x.batchId===batch.id &&
-    String(x.directions||'').trim()===normalizedDirections
+    String(x.directions||'').trim()===normalizedDirections &&
+    String(x.patientName||'').trim()===patientFullName
   );
 
   if(line){
@@ -1888,7 +1891,9 @@ function addBatchToCart(product,batch,quantity=1,directions=''){
       unitPrice:Number(batch.sellingPrice),
       quantity:requested,
       maxQty:maxQty,
-      directions:normalizedDirections
+      directions:normalizedDirections,
+      patientId:selectedPatient?.id||null,
+      patientName:patientFullName
     };
     appState.cart.push(line);
   }
@@ -1927,6 +1932,7 @@ function printDirectionLabel(line){
     body{font-family:Arial,sans-serif;margin:0;color:#111}
     .label{border:1.5px solid #111;padding:10px;height:1.7in;box-sizing:border-box}
     .pharmacy{font-size:15px;font-weight:800;border-bottom:1px solid #333;padding-bottom:4px;margin-bottom:6px}
+    .patient-name{font-size:16px;font-weight:900;margin:4px 0 6px;border-bottom:1px solid #aaa;padding-bottom:4px}
     .drug{font-size:16px;font-weight:800}
     .meta{font-size:10px;margin:3px 0;color:#333}
     .directions{font-size:17px;font-weight:800;line-height:1.25;margin-top:8px}
@@ -1934,8 +1940,9 @@ function printDirectionLabel(line){
   </style></head><body>
     <div class="label">
       <div class="pharmacy">${esc(pharmacy)}</div>
+      <div class="patient-name">Patient: ${esc(patientFullName||'Walk-in Customer')}</div>
       <div class="drug">${esc(line.productName)}</div>
-      <div class="meta">${patient?`Patient: ${esc(patient.name)} • `:''}Batch: ${esc(line.batchNo)} • Exp: ${fmtDate(line.expiryDate)} • Qty: ${line.quantity}</div>
+      <div class="meta">Batch: ${esc(line.batchNo)} • Exp: ${fmtDate(line.expiryDate)} • Qty: ${line.quantity}</div>
       <div class="directions">${esc(line.directions)}</div>
       <div class="footer">Use exactly as prescribed / authorized. Keep out of reach of children.</div>
     </div>
@@ -2222,7 +2229,15 @@ async function printDirectionLabel(line){
     return;
   }
 
-  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  /*
+   PURPOSE:
+   Uses the patient full name saved with the cart line so a label reprint cannot
+   accidentally switch to a different patient selected later in POS.
+   REFERENCE:
+   Older cart lines fall back to the currently selected patient for compatibility.
+  */
+  const fallbackPatient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const patientFullName=String(line.patientName||fallbackPatient?.name||'').trim();
   const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'Pharmacy';
   const ps=getPrinterSettings();
   const size=labelSizeToInches(ps.labelSize);
