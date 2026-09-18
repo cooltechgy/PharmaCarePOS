@@ -1045,3 +1045,208 @@ function bindPos(){
 
 /* PURPOSE: Complete a patient-aware sale by saving locally first, then synchronizing. REFERENCE: Offline-first transaction guarantee plus patient history linkage. */
 async function completeSale(){if(!appState.cart.length)return;const opId=crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`,sale={tenantId:appState.session.tenantId,branchId:appState.session.branchId,clientOperationId:opId,discount:0,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId||null,lines:appState.cart.map(x=>({batchId:x.batchId,quantity:x.quantity})),localCreatedUtc:new Date().toISOString(),status:'pending'};await PharmaOffline.put('pendingSales',opId,sale);for(const line of appState.cart){const b=appState.batches.find(x=>x.id===line.batchId);if(b)b.quantity=Math.max(0,Number(b.quantity)-Number(line.quantity))}await PharmaOffline.replaceAll('batches',appState.batches);appState.cart=[];appState.selectedCustomerId=null;render();toast(navigator.onLine?'Sale saved locally. Synchronizing...':'Sale saved offline. It will sync automatically.');if(navigator.onLine){await syncPendingSales();await refreshSnapshot();await loadDashboard();render()}}
+
+
+/* ============================================================================
+ POS BATCH POPUP
+ PURPOSE:
+ Opens a dedicated batch-selection modal whenever a medicine is clicked in POS.
+ REFERENCE:
+ Keeps batch/expiry choice out of the left medicine panel and makes FEFO selection
+ clear before an item is added to the cart.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Renders the POS medicine list and cart without an inline batch block.
+ REFERENCE:
+ Clicking a medicine now opens showBatchSelectionModal(productId).
+*/
+function posView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+l.quantity*l.unitPrice,0);
+  return `<div class="page-header"><div><h1>POS Sales</h1><p>Fast billing with patient, batch & expiry control</p></div><span class="sync-pill">${navigator.onLine?'🟢 Online sync ready':'🟠 Offline queue ready'}</span></div>
+  ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode: invoices are saved locally first and synchronized later.</div>'}
+  <div class="pos-grid">
+    <div class="panel product-search-panel">
+      <div class="panel-head"><span>Find Medicine</span><span class="badge blue">F2 Search</span></div>
+      <div class="pos-search"><input id="posSearch" placeholder="Scan barcode or search medicine..."><button class="btn-primary" id="posSearchBtn">Search</button></div>
+      <div class="product-list">${appState.products.slice(0,1000).map(p=>`
+        <div class="product-row ${p.id===appState.selectedProductId?'selected':''}" data-product-id="${p.id}">
+          <div><b>${esc(p.name)}</b><br><small>${esc(p.genericName||'')}</small></div>
+          <div>${esc(p.strength||'')}</div>
+          <div>${money(p.sellingPrice)}</div>
+          <div>${stockForProduct(p.id)}</div>
+        </div>`).join('')}</div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><span>Cart (${appState.cart.length} items)</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear All</button></div>
+      <div class="panel-body">
+        <div class="patient-select"><select id="posCustomer"><option value="">Walk-in Customer</option>${appState.customers.map(c=>`<option value="${c.id}" ${Number(appState.selectedCustomerId)===c.id?'selected':''}>${esc(c.name)} — ${esc(c.phone||'')}</option>`).join('')}</select><button class="btn-light" id="quickAddPatientBtn">+ Patient</button></div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>
+        ${appState.cart.map((l,i)=>`<tr><td><b>${esc(l.productName)}</b></td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td><button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Click a medicine to select its batch.</td></tr>'}
+        </tbody></table></div>
+        <div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div>
+        <div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div>
+        <div class="checkout-actions"><button class="btn-light" id="holdSaleBtn">Hold</button><button class="btn-light" id="printBtn">Print</button><button class="btn-success btn-lg" id="completeSaleBtn" ${appState.cart.length?'':'disabled'}>Complete Sale</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ Wires POS medicine clicks to the batch selection popup.
+ REFERENCE:
+ Search, cart editing, patient selection, payment and checkout remain unchanged.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+  const filter=()=>{
+    const q=(search?.value||'').toLowerCase();
+    document.querySelectorAll('.product-row').forEach(row=>{
+      const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+      row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none';
+    });
+  };
+  search?.addEventListener('input',filter);
+  document.getElementById('posSearchBtn')?.addEventListener('click',filter);
+  document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
+  document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null;});
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.getElementById('printBtn')?.addEventListener('click',()=>window.print());
+  document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    render();
+    toast('Sale held locally.');
+  });
+}
+
+/*
+ PURPOSE:
+ Shows valid batches for one medicine in FEFO order inside a popup.
+ REFERENCE:
+ Expired/zero-stock batches are excluded; the earliest expiry is highlighted as FEFO.
+*/
+function showBatchSelectionModal(productId){
+  const product=appState.products.find(p=>p.id===productId);
+  if(!product)return;
+  const batches=appState.batches
+    .filter(b=>b.productId===productId && Number(b.quantity)>0 && daysLeft(b.expiryDate)>=0)
+    .sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+
+  if(!batches.length){
+    toast('No valid in-stock batch is available for this medicine.','warning');
+    return;
+  }
+
+  let selectedBatchId=batches[0].id;
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+  <div class="modal batch-select-modal">
+    <div class="modal-head">
+      <div>
+        <b class="batch-modal-title">Select Batch for ${esc(product.name)}</b>
+        <div class="muted">Choose the exact batch before adding this medicine to the cart.</div>
+      </div>
+      <button class="close-btn" id="batchModalClose">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="batch-product-summary">
+        <img class="product-photo batch-product-photo" src="${esc(product.imageUrl||'/images/medicine-placeholder.svg')}" onerror="this.src='/images/medicine-placeholder.svg'">
+        <div><b>${esc(product.name)}</b><div class="muted">${esc(product.category||'Medicine')} • ${esc(product.brand||product.genericName||'')}</div></div>
+        <span class="badge green">${esc(product.strength||'')}</span>
+      </div>
+      <div class="batch-modal-table">
+        <div class="batch-table-head"><span>Batch No.</span><span>Expiry Date</span><span>Available Qty</span><span>Selling Price</span><span>Select</span></div>
+        ${batches.map((b,index)=>`
+          <label class="batch-choice-row ${index===0?'fefo-row selected':''}" data-batch-choice="${b.id}">
+            <span><b>${esc(b.batchNo)}</b>${index===0?'<small class="fefo-tag">FEFO • Earliest Expiry</small>':''}</span>
+            <span><b>${fmtDate(b.expiryDate)}</b><small>${daysLeft(b.expiryDate)} days left</small></span>
+            <span><b>${Number(b.quantity)}</b></span>
+            <span><b>${money(b.sellingPrice)}</b></span>
+            <span><input type="radio" name="batchChoice" value="${b.id}" ${index===0?'checked':''}></span>
+          </label>`).join('')}
+      </div>
+      <div class="fefo-help"><b>FEFO (First Expiry, First Out)</b> — the earliest valid expiry is selected automatically to reduce waste and improve stock rotation.</div>
+    </div>
+    <div class="modal-foot batch-modal-foot">
+      <div class="selected-batch-pill" id="selectedBatchSummary"></div>
+      <button class="btn-light" id="batchModalCancel">Cancel</button>
+      <button class="btn-primary btn-lg" id="batchModalAdd">Add to Cart</button>
+    </div>
+  </div>`;
+  document.body.appendChild(host);
+
+  const close=()=>host.remove();
+  const updateSummary=()=>{
+    const batch=batches.find(b=>b.id===selectedBatchId);
+    const summary=document.getElementById('selectedBatchSummary');
+    if(summary && batch)summary.textContent=`${batch.batchNo} • Exp ${fmtDate(batch.expiryDate)} • Qty ${batch.quantity}`;
+    host.querySelectorAll('[data-batch-choice]').forEach(row=>row.classList.toggle('selected',Number(row.dataset.batchChoice)===selectedBatchId));
+  };
+  updateSummary();
+
+  document.getElementById('batchModalClose').onclick=close;
+  document.getElementById('batchModalCancel').onclick=close;
+  host.querySelectorAll('input[name="batchChoice"]').forEach(radio=>radio.onchange=()=>{
+    selectedBatchId=Number(radio.value);
+    updateSummary();
+  });
+  host.querySelectorAll('[data-batch-choice]').forEach(row=>row.onclick=e=>{
+    if(e.target.tagName!=='INPUT'){
+      selectedBatchId=Number(row.dataset.batchChoice);
+      const radio=row.querySelector('input[type="radio"]');
+      if(radio)radio.checked=true;
+      updateSummary();
+    }
+  });
+  document.getElementById('batchModalAdd').onclick=()=>{
+    addBatchToCart(product, batches.find(b=>b.id===selectedBatchId));
+    close();
+  };
+}
+
+/*
+ PURPOSE:
+ Adds a popup-selected batch to the cart and respects available cached stock.
+ REFERENCE:
+ Existing cart lines for the same batch are incremented instead of duplicated.
+*/
+function addBatchToCart(product,batch){
+  if(!product||!batch)return;
+  const existing=appState.cart.find(x=>x.batchId===batch.id);
+  if(existing){
+    if(existing.quantity>=Number(batch.quantity))return toast('No more cached stock is available in this batch.','warning');
+    existing.quantity+=1;
+  }else{
+    appState.cart.push({
+      batchId:batch.id,
+      productId:product.id,
+      productName:product.name,
+      batchNo:batch.batchNo,
+      expiryDate:batch.expiryDate,
+      unitPrice:Number(batch.sellingPrice),
+      quantity:1,
+      maxQty:Number(batch.quantity)
+    });
+  }
+  appState.selectedBatchId=batch.id;
+  toast(`${product.name} • batch ${batch.batchNo} added to cart.`,'success');
+  render();
+}
