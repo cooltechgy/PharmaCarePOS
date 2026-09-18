@@ -1,0 +1,9 @@
+{
+  "name": "PharmaCare POS",
+  "short_name": "PharmaCare",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eff8ff",
+  "theme_color": "#075985",
+  "icons": []
+}
