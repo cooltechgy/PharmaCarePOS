@@ -597,3 +597,153 @@ function addSelectedBatchToCart() {
 /*
  PURPOSE:
  Saves a sale locally first, updates cached stock, then attempts immediate server synchronization.
+ REFERENCE:
+ Local-first persistence is the critical offline guarantee requested for internet outages.
+*/
+async function completeSale() {
+  if (!appState.cart.length) return;
+  const opId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const sale = {
+    tenantId: appState.session.tenantId,
+    branchId: appState.session.branchId,
+    clientOperationId: opId,
+    discount: 0,
+    paymentMethod: appState.paymentMethod,
+    lines: appState.cart.map(x=>({batchId:x.batchId,quantity:x.quantity})),
+    localCreatedUtc: new Date().toISOString(),
+    status: 'pending'
+  };
+  await PharmaOffline.put('pendingSales', opId, sale);
+  for (const line of appState.cart) {
+    const b=appState.batches.find(x=>x.id===line.batchId);
+    if (b) b.quantity=Math.max(0,Number(b.quantity)-Number(line.quantity));
+  }
+  await PharmaOffline.replaceAll('batches',appState.batches);
+  appState.cart=[];
+  render();
+  toast(navigator.onLine?'Sale saved locally. Synchronizing...':'Sale saved offline. It will sync automatically.','success');
+  if (navigator.onLine) {
+    await syncPendingSales();
+    await refreshSnapshot();
+    await loadDashboard();
+    render();
+  }
+}
+
+/*
+ PURPOSE:
+ Pushes all pending offline sales to the server one by one.
+ REFERENCE:
+ Conflict responses remain queued so stock discrepancies are not silently discarded.
+*/
+async function syncPendingSales() {
+  if (!navigator.onLine || !appState.session || appState.session.role === 'PlatformAdmin') return;
+  const sales=await PharmaOffline.all('pendingSales');
+  for (const sale of sales) {
+    try {
+      await api('/api/sales',{method:'POST',body:JSON.stringify(sale)});
+      await PharmaOffline.remove('pendingSales',sale.clientOperationId);
+      toast(`Synced offline sale ${sale.clientOperationId.slice(0,8)}.`,'success');
+    } catch (error) {
+      sale.status='conflict';
+      sale.lastError=error.message;
+      await PharmaOffline.put('pendingSales',sale.clientOperationId,sale);
+      toast(`Sale sync needs review: ${error.message}`,'error');
+    }
+  }
+}
+
+/*
+ PURPOSE:
+ Opens and submits the Add Product modal.
+ REFERENCE:
+ After saving online, the catalogue snapshot is refreshed into IndexedDB.
+*/
+function bindProducts() {
+  document.getElementById('addProductBtn')?.addEventListener('click',showProductModal);
+  document.getElementById('productFilter')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();document.getElementById('productTableBody').innerHTML=productRows(appState.products.filter(p=>`${p.name} ${p.genericName} ${p.brand}`.toLowerCase().includes(q))); bindProductEditButtons();});
+  bindProductEditButtons();
+}
+
+/*
+ PURPOSE:
+ Displays the product-entry form closely matching the Add/Edit Product reference screen.
+ REFERENCE:
+ This modal is generated dynamically so the main page stays uncluttered.
+*/
+function showProductModal(product = null) {
+  const host=document.createElement('div');host.className='modal-backdrop';host.innerHTML=`<div class="modal"><div class="modal-head"><b>${product ? 'Edit Product' : 'Add New Product'}</b><button class="close-btn" id="closeProductModal">×</button></div><form id="productForm"><div class="modal-body"><div class="tabs"><button type="button" class="tab active">Basic Info</button><button type="button" class="tab">Batch & Expiry</button><button type="button" class="tab">Pricing</button></div><div class="form-grid"><div class="field"><label>Product Name *</label><input id="pName" required value="${esc(product?.name || 'Amoxicillin 250mg')}"></div><div class="field"><label>Generic Name</label><input id="pGeneric" value="${esc(product?.genericName || 'Amoxicillin')}"></div><div class="field"><label>Category</label><input id="pCategory" value="${esc(product?.category || 'Antibiotic')}"></div><div class="field"><label>Brand</label><input id="pBrand" value="${esc(product?.brand || 'Amoxil')}"></div><div class="field"><label>Strength</label><input id="pStrength" value="${esc(product?.strength || '250mg')}"></div><div class="field"><label>Pack Size</label><input id="pPack" value="${esc(product?.packSize || '10 Capsules')}"></div><div class="field"><label>Barcode</label><input id="pBarcode" value="${esc(product?.barcode || Date.now())}"></div><div class="field"><label>Purchase Price</label><input id="pCost" type="number" step="0.01" value="${product?.purchasePrice ?? 18}"></div><div class="field"><label>Selling Price</label><input id="pSell" type="number" step="0.01" value="${product?.sellingPrice ?? 30}"></div><div class="field"><label><input id="pTrack" type="checkbox" ${product?.trackBatchExpiry===false?'':'checked'} style="width:auto"> Track Batch & Expiry</label></div><div class="field"><label><input id="pRx" type="checkbox" ${product?.requiresPrescription?'checked':''} style="width:auto"> Requires Prescription</label></div></div></div><div class="modal-foot"><button type="button" class="btn-light" id="cancelProduct">Cancel</button><button class="btn-primary" type="submit">Save Product</button></div></form></div>`;document.body.appendChild(host);
+  const close=()=>host.remove();document.getElementById('closeProductModal').onclick=close;document.getElementById('cancelProduct').onclick=close;
+  document.getElementById('productForm').addEventListener('submit',async e=>{e.preventDefault();if(!navigator.onLine)return toast('Adding a brand-new master product requires server connection in this demo.','warning');try{await api(product ? `/api/products/${product.id}` : '/api/products',{method:product ? 'PUT' : 'POST',body:JSON.stringify({tenantId:appState.session.tenantId,name:document.getElementById('pName').value,genericName:document.getElementById('pGeneric').value,strength:document.getElementById('pStrength').value,packSize:document.getElementById('pPack').value,category:document.getElementById('pCategory').value,brand:document.getElementById('pBrand').value,barcode:document.getElementById('pBarcode').value,sellingPrice:Number(document.getElementById('pSell').value),purchasePrice:Number(document.getElementById('pCost').value),trackBatchExpiry:document.getElementById('pTrack').checked,requiresPrescription:document.getElementById('pRx').checked})});await refreshSnapshot();close();render();toast('Product saved.');}catch(error){toast(error.message,'error')}});
+}
+
+/*
+ PURPOSE:
+ Wires the purchase form to the server GRN endpoint.
+ REFERENCE:
+ Purchase entry is intentionally online-only in this demo because offline receiving across multiple devices needs a stronger conflict policy than offline sales.
+*/
+function bindPurchase() {
+  document.getElementById('cancelPurchaseBtn')?.addEventListener('click',()=>{appState.view='dashboard';render();});
+  document.getElementById('purchaseProduct')?.addEventListener('change',e=>{const p=appState.products.find(x=>x.id===Number(e.target.value));if(p){document.getElementById('purchaseCost').value=p.purchasePrice;document.getElementById('purchaseSell').value=p.sellingPrice;}});
+  document.getElementById('purchaseForm')?.addEventListener('submit',async e=>{e.preventDefault();if(!navigator.onLine)return toast('Purchase receiving requires internet in this demo.','warning');try{await api('/api/purchases',{method:'POST',body:JSON.stringify({tenantId:appState.session.tenantId,branchId:appState.session.branchId,supplierId:Number(document.getElementById('purchaseSupplier').value||0),invoiceNo:document.getElementById('purchaseInvoice').value,lines:[{productId:Number(document.getElementById('purchaseProduct').value),batchNo:document.getElementById('purchaseBatch').value,expiryDate:document.getElementById('purchaseExpiry').value,quantity:Number(document.getElementById('purchaseQty').value),purchasePrice:Number(document.getElementById('purchaseCost').value),sellingPrice:Number(document.getElementById('purchaseSell').value)}]})});await refreshSnapshot();render();toast('Purchase posted and stock updated.');}catch(error){toast(error.message,'error')}});
+}
+
+/*
+ PURPOSE:
+ Loads SaaS tenants and subscription plans into the platform screen.
+ REFERENCE:
+ This provides a working management view instead of the previous decorative shell.
+*/
+function bindSaas() {
+  document.getElementById('loadSaasBtn')?.addEventListener('click',async()=>{try{const data=await api('/api/saas');const pending=(await PharmaOffline.all('pendingSales')).length;document.getElementById('saasData').innerHTML=`<div class="cards"><div class="metric blue"><div class="label">Tenants</div><div class="value">${data.tenants.length}</div></div><div class="metric green"><div class="label">Active</div><div class="value">${data.tenants.filter(t=>t.status==='Active').length}</div></div><div class="metric orange"><div class="label">Local Pending Sync</div><div class="value">${pending}</div></div><div class="metric purple"><div class="label">Plans</div><div class="value">${data.plans.length}</div></div></div><div class="grid-2"><div class="panel"><div class="panel-head">Tenant Companies</div><div class="panel-body"><div class="table-wrap"><table class="data-table"><thead><tr><th>Code</th><th>Name</th><th>Plan</th><th>Status</th></tr></thead><tbody>${data.tenants.map(t=>`<tr><td>${esc(t.code)}</td><td><b>${esc(t.name)}</b></td><td><span class="badge blue">${esc(t.plan)}</span></td><td><span class="badge green">${esc(t.status)}</span></td></tr>`).join('')}</tbody></table></div></div></div><div><div class="saas-grid" style="grid-template-columns:1fr">${data.plans.map(p=>`<div class="plan-card"><h3>${esc(p.name)}</h3><div class="price">${money(p.monthlyPrice)}<small>/mo</small></div><div>${p.branchLimit} branches • ${p.userLimit} users</div></div>`).join('')}</div></div></div>`;}catch(error){toast(error.message,'error')}});
+}
+
+boot();
+
+/*
+ PURPOSE:
+ Wires Edit buttons for products after a product table render/filter.
+ REFERENCE:
+ Table HTML can be replaced by search, so handlers are reattached each time.
+*/
+function bindProductEditButtons() {
+  document.querySelectorAll('[data-edit-product]').forEach(btn => btn.addEventListener('click', () => {
+    const product = appState.products.find(x => x.id === Number(btn.dataset.editProduct));
+    if (product) showProductModal(product);
+  }));
+}
+
+/*
+ PURPOSE:
+ Downloads simple CSV data without requiring an external spreadsheet library.
+ REFERENCE:
+ Used by Stock and Expiry export buttons.
+*/
+function downloadCsv(filename, rows) {
+  const csv = rows.map(row => row.map(value => `"${String(value ?? '').replaceAll('"','""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.href = url; link.download = filename; link.click();
+  URL.revokeObjectURL(url);
+}
+
+/*
+ PURPOSE:
+ Wires stock search, status filter, export, sync and batch edit controls.
+ REFERENCE:
+ These controls were visual-only in v2 and now perform real actions.
+*/
+function bindStock() {
+  document.getElementById('syncNowBtn')?.addEventListener('click', async()=>{ await syncPendingSales(); await refreshSnapshot(); render(); toast('Sync complete.'); });
+  const filter = () => {
+    const q=(document.getElementById('stockSearch')?.value||'').toLowerCase();
+    const status=document.getElementById('stockStatus')?.value||'all';
+    document.querySelectorAll('[data-stock-view]').forEach(btn => {
+      const row=btn.closest('tr'); const batch=appState.batches.find(x=>x.id===Number(btn.dataset.stockView)); const product=appState.products.find(x=>x.id===batch?.productId);
+      const dl=batch?daysLeft(batch.expiryDate):9999;
+      const matchText=!q || `${product?.name} ${batch?.batchNo}`.toLowerCase().includes(q);
+      const matchStatus=status==='all' || (status==='low'&&Number(batch?.quantity)<=10) || (status==='expiry'&&dl>=0&&dl<=60) || (status==='expired'&&dl<0);
+      row.style.display=matchText&&matchStatus?'':'none';
+    });
+  };
