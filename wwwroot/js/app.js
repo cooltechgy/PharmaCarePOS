@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.9</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.0</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -2532,7 +2532,7 @@ function showPosCustomerLookup(){
       </div>
       <div class="modal-body">
         <div class="customer-lookup-search">
-          <input id="customerLookupSearch" placeholder="Search patient..." autocomplete="off">
+          <input id="customerLookupSearch" placeholder="Type customer name, phone, email, or ID..." autocomplete="off">
           <button class="btn-light" id="customerLookupWalkIn">Use Walk-in Customer</button>
         </div>
         <div id="customerLookupResults"></div>
@@ -2558,22 +2558,18 @@ function showPosCustomerLookup(){
       <div class="customer-lookup-count">${list.length} patient${list.length===1?'':'s'} found</div>
       <div class="customer-lookup-table">
         <div class="customer-lookup-head">
-          <span>Patient</span><span>Contact</span><span>Alerts</span><span>Action</span>
+          <span>Name</span><span>Patient ID</span><span>Phone</span><span>Email</span><span>Alerts</span><span>Action</span>
         </div>
         ${list.map(c=>`
-          <div class="customer-lookup-item ${Number(appState.selectedCustomerId)===c.id?'selected':''}">
-            <div class="customer-lookup-main">
-              <b>${esc(c.name)}</b>
-              <small>Patient ID #${c.id}</small>
-            </div>
-            <div class="customer-lookup-contact">
-              <span>${esc(c.phone||'No phone')}</span>
-              <small>${esc(c.email||'No email')}</small>
-            </div>
-            <div class="customer-lookup-alerts">
+          <div class="customer-lookup-item customer-lookup-one-line ${Number(appState.selectedCustomerId)===c.id?'selected':''}">
+            <div class="customer-cell customer-name-cell"><b>${esc(c.name)}</b></div>
+            <div class="customer-cell">#${c.id}</div>
+            <div class="customer-cell">${esc(c.phone||'—')}</div>
+            <div class="customer-cell customer-email-cell">${esc(c.email||'—')}</div>
+            <div class="customer-cell customer-lookup-alerts">
               ${c.allergies?`<span class="lookup-alert allergy">Allergy: ${esc(c.allergies)}</span>`:''}
               ${c.medicalConditions?`<span class="lookup-alert condition">Condition: ${esc(c.medicalConditions)}</span>`:''}
-              ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts recorded</span>':''}
+              ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts</span>':''}
             </div>
             <div class="customer-lookup-action">
               <button type="button" class="btn-primary btn-xs" data-select-customer="${c.id}">Select</button>
