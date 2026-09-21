@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.4</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.5</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -2763,18 +2763,18 @@ function posView(){
     <div class="panel">
       <div class="panel-head"><span>Cart (${appState.cart.length} items)</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear All</button></div>
       <div class="panel-body">
-        <div class="pos-customer-bar">
-          <div class="pos-customer-current">
-            <span class="pos-customer-label">Customer / Patient</span>
-            <div>
-              ${patient
-                ? `<b>${esc(patient.name)}</b><small>${esc(patient.phone||'No phone')} ${patient.email?'• '+esc(patient.email):''}</small>`
-                : '<b>Walk-in Customer</b><small>No patient selected</small>'}
-            </div>
+        <div class="pos-customer-bar pos-customer-inline">
+          <span class="pos-customer-inline-label">Customer / Patient</span>
+          <div class="pos-customer-inline-details">
+            <b>${patient?esc(patient.name):'Walk-in Customer'}</b>
+            ${patient?.phone?`<span class="customer-inline-sep">•</span><span>${esc(patient.phone)}</span>`:''}
+            ${patient?.email?`<span class="customer-inline-sep">•</span><span>${esc(patient.email)}</span>`:''}
           </div>
-          <button class="btn-primary" id="customerLookupBtn">🔎 Customer Lookup</button>
-          <button class="btn-light" id="quickAddPatientBtn">+ New Patient</button>
-          ${patient?'<button class="btn-light" id="clearCustomerBtn">Walk-in</button>':''}
+          <div class="pos-customer-inline-actions">
+            <button class="btn-primary" id="customerLookupBtn">🔎 Lookup</button>
+            <button class="btn-light" id="quickAddPatientBtn">+ New Patient</button>
+            <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>Walk-in</button>
+          </div>
         </div>
 
         ${patient && (patient.allergies||patient.medicalConditions)

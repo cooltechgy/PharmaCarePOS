@@ -169,3 +169,56 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .cashier-summary-cards{grid-template-columns:1fr 1fr}
   .checkout-two-way>button{flex:1 1 45%}
 }
+
+
+/* POS customer bar cleanup — v5.5 */
+.pos-customer-inline{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:10px 12px;
+  margin-bottom:12px;
+  background:#f8fbfe;
+  border:1px solid #dbe7f0;
+  border-radius:10px;
+}
+.pos-customer-inline-label{
+  font-size:11px;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.45px;
+  color:#6c8294;
+  white-space:nowrap;
+}
+.pos-customer-inline-details{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  overflow:hidden;
+  color:#29465d;
+}
+.pos-customer-inline-details b,
+.pos-customer-inline-details span{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.customer-inline-sep{color:#a4b1bc;flex:0 0 auto}
+.pos-customer-inline-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:nowrap;
+}
+.pos-customer-inline-actions button{white-space:nowrap}
+@media(max-width:980px){
+  .pos-customer-inline{grid-template-columns:1fr auto}
+  .pos-customer-inline-label{grid-column:1/-1}
+}
+@media(max-width:720px){
+  .pos-customer-inline{grid-template-columns:1fr}
+  .pos-customer-inline-details{flex-wrap:wrap;overflow:visible}
+  .pos-customer-inline-actions{flex-wrap:wrap}
+}
