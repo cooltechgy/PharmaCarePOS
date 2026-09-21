@@ -483,3 +483,19 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .pos-v62-filter-row,.pos-v62-checkout-grid{grid-template-columns:1fr}
   .pos-v62-quick-actions{grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* Pay Here method popup + Held order recall — v6.5 */
+.pay-method-modal{width:min(620px,94vw)}
+.pay-method-total{text-align:center;padding:18px;border:1px solid #d9e7f0;border-radius:12px;background:#f7fbfe;margin-bottom:14px}
+.pay-method-total span{display:block;font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.4px;color:#71869a}
+.pay-method-total strong{display:block;margin-top:5px;font-size:32px;color:#0c6fae}
+.pay-method-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pay-method-grid button{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center;text-align:left;padding:15px;border:1px solid #d8e5ee;border-radius:11px;background:#fff;color:#213d55}
+.pay-method-grid button:hover{background:#eef7ff;border-color:#78b6e4}
+.pay-method-grid button span{grid-row:1/3;font-size:26px}
+.pay-method-grid button b{font-size:16px}
+.pay-method-grid button small{color:#71869a}
+.held-orders-modal{width:min(900px,96vw)}
+.held-orders-table td,.held-orders-table th{vertical-align:middle}
+@media(max-width:560px){.pay-method-grid{grid-template-columns:1fr}}
