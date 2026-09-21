@@ -256,3 +256,21 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .customer-lookup-item{grid-template-columns:1fr;gap:8px}
   .customer-lookup-action{justify-self:start}
 }
+
+
+/* Report viewer — v5.9 */
+.report-viewer-modal{width:min(1180px,97vw);max-height:92vh}
+.report-company-header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding:14px 16px;margin-bottom:14px;border:1px solid #d7e5ef;border-left:5px solid #0d5e91;border-radius:10px;background:#f8fbfe}
+.report-company-header h2{margin:0 0 4px;font-size:20px}
+.report-company-header>div:first-child>div{color:#60778a;font-size:12px}
+.report-company-meta{text-align:right}
+.report-company-meta b,.report-company-meta span{display:block}
+.report-company-meta span{margin-top:4px;color:#71869a;font-size:11px}
+.report-viewer-table-wrap{max-height:56vh;overflow:auto;border:1px solid #dce7ef;border-radius:9px}
+.report-viewer-table thead th{position:sticky;top:0;z-index:1}
+.report-viewer-summary{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.report-viewer-summary>div{padding:9px 11px;border-radius:8px;background:#f1f7fb;border:1px solid #dce8f1}
+@media(max-width:700px){
+  .report-company-header{display:block}
+  .report-company-meta{text-align:left;margin-top:10px}
+}
