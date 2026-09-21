@@ -160,7 +160,8 @@ app.MapPost("/api/sales", async (SaleRequest request, AppDbContext db) =>
     await db.SaveChangesAsync();
     await transaction.CommitAsync();
 
-    return Results.Ok(new { status = "synced", saleId = sale.Id, invoiceNo = sale.InvoiceNo, total = sale.Total });
+    var paymentStatus = sale.PaymentMethod.StartsWith("PENDING::", StringComparison.OrdinalIgnoreCase) ? "Pending" : "Complete";
+    return Results.Ok(new { status = "synced", saleId = sale.Id, invoiceNo = sale.InvoiceNo, total = sale.Total, paymentStatus });
 });
 
 /*
@@ -556,6 +557,81 @@ app.MapPost("/api/products/{id:int}/enrich-image", async (int id, int tenantId, 
     catch { return Results.Ok(new { matched = false, imageUrl = product.ImageUrl }); }
 });
 
+
+
+/*
+ PURPOSE:
+ Returns all cashier-bound orders that are waiting for payment.
+ REFERENCE:
+ Pending state is stored inside Sale.PaymentMethod as PENDING::<suggested method>
+ so existing MSSQL databases do not require a schema migration.
+*/
+app.MapGet("/api/cashier/pending", async (int tenantId, int branchId, AppDbContext db) =>
+{
+    var rows = await (
+        from s in db.Sales
+        join c in db.Customers on s.CustomerId equals c.Id into customerJoin
+        from customer in customerJoin.DefaultIfEmpty()
+        where s.TenantId == tenantId
+              && s.BranchId == branchId
+              && s.PaymentMethod.StartsWith("PENDING::")
+        orderby s.CreatedUtc
+        select new
+        {
+            s.Id,
+            s.InvoiceNo,
+            s.CreatedUtc,
+            s.Total,
+            s.CustomerId,
+            customerName = customer != null ? customer.Name : "Walk-in Customer",
+            customerPhone = customer != null ? customer.Phone : "",
+            suggestedPaymentMethod = s.PaymentMethod.Substring("PENDING::".Length),
+            paymentStatus = "Pending"
+        }
+    ).ToListAsync();
+
+    return Results.Ok(rows);
+});
+
+/*
+ PURPOSE:
+ Marks one cashier payment as complete after money/card payment is collected.
+ REFERENCE:
+ Replaces the pending marker with the final payment method using the existing
+ Sale.PaymentMethod field, avoiding a database schema reset.
+*/
+app.MapPut("/api/cashier/{saleId:int}/complete", async (int saleId, CashierPaymentRequest request, AppDbContext db) =>
+{
+    var sale = await db.Sales.FirstOrDefaultAsync(x =>
+        x.Id == saleId &&
+        x.TenantId == request.TenantId &&
+        x.BranchId == request.BranchId);
+
+    if (sale is null)
+        return Results.NotFound(new { message = "Sale not found." });
+
+    if (!sale.PaymentMethod.StartsWith("PENDING::", StringComparison.OrdinalIgnoreCase))
+        return Results.Conflict(new { message = "This payment is already complete." });
+
+    var allowed = new[] { "Cash", "Card", "UPI", "Split" };
+    var finalMethod = allowed.Contains(request.PaymentMethod, StringComparer.OrdinalIgnoreCase)
+        ? allowed.First(x => x.Equals(request.PaymentMethod, StringComparison.OrdinalIgnoreCase))
+        : "Cash";
+
+    sale.PaymentMethod = finalMethod;
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        sale.Id,
+        sale.InvoiceNo,
+        sale.Total,
+        paymentStatus = "Complete",
+        paymentMethod = sale.PaymentMethod
+    });
+});
+
+
 /*
  PURPOSE:
  Copies all customer profile fields from the request to the entity in one beginner-readable helper.
@@ -584,6 +660,7 @@ app.Run();
 record LoginRequest(string TenantCode, string Username, string Password);
 record SaleRequest(int TenantId, int BranchId, string ClientOperationId, decimal Discount, string PaymentMethod, int? CustomerId, List<SaleLineRequest> Lines);
 record SaleLineRequest(int BatchId, decimal Quantity);
+record CashierPaymentRequest(int TenantId, int BranchId, string PaymentMethod);
 record ProductRequest(int TenantId, string Name, string GenericName, string Strength, string PackSize, string Category, string Brand, string Barcode, decimal SellingPrice, decimal PurchasePrice, bool TrackBatchExpiry, bool RequiresPrescription, string? RxNormId, string? ImageUrl, string? Manufacturer, string? DosageForm, string? Notes);
 record PurchaseRequest(int TenantId, int BranchId, int SupplierId, string InvoiceNo, List<PurchaseLineRequest> Lines);
 record PurchaseLineRequest(int ProductId, string BatchNo, DateTime ExpiryDate, decimal Quantity, decimal PurchasePrice, decimal SellingPrice);

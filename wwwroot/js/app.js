@@ -197,7 +197,7 @@ function bindLogin() {
 */
 function shellView() {
   const nav = [
-    ['dashboard','⌂','Dashboard'],['pos','🛒','POS (Sales)'],['products','💊','Products'],['purchase','▣','Purchase'],['stock','▤','Stock'],['expiry','⏰','Expiry Stock'],['customers','👥','Customers'],['suppliers','🚚','Suppliers'],['reports','📊','Reports']
+    ['dashboard','⌂','Dashboard'],['pos','🛒','POS (Sales)'],['cashier','💵','Cashier'],['products','💊','Products'],['purchase','▣','Purchase'],['stock','▤','Stock'],['expiry','⏰','Expiry Stock'],['customers','👥','Customers'],['suppliers','🚚','Suppliers'],['reports','📊','Reports']
   ];
   if (appState.session.role === 'PlatformAdmin') nav.unshift(['saas','☁','SaaS Admin']);
   nav.push(['settings','⚙','Settings']);
@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.3</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.4</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -229,6 +229,7 @@ function shellView() {
 function screenView() {
   switch (appState.view) {
     case 'pos': return posView();
+    case 'cashier': return cashierView();
     case 'products': return productsView();
     case 'purchase': return purchaseView();
     case 'stock': return stockView();
@@ -506,6 +507,23 @@ function settingsView() {
     body = `<div class="form-grid"><div class="field"><label>Invoice Prefix</label><input id="setPrefix" value="${esc(appState.settings?.invoicePrefix || 'INV')}"></div><div class="field"><label>Currency</label><select id="invoiceCurrency"><option value="USD" ${appState.settings?.currency==='USD'?'selected':''}>USD ($)</option><option value="GYD" ${appState.settings?.currency==='GYD'?'selected':''}>GYD ($)</option></select></div><div class="field full"><label>Invoice Preview</label><div class="section-note">${esc(appState.settings?.invoicePrefix || 'INV')}-000001 &nbsp; • &nbsp; ${esc(appState.settings?.pharmacyName || appState.session.tenantName)}</div></div></div><div class="checkout-actions"><button class="btn-success" id="saveInvoiceSettingsBtn">Save Invoice Settings</button><button class="btn-light" id="previewInvoiceBtn">Preview Invoice</button></div>`;
   } else if (tab === 'users') {
     body = `<div class="toolbar"><button class="btn-primary" id="loadSettingsUsersBtn">Refresh Users</button><button class="btn-success" id="addSettingsUserBtn">+ Add User</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th>User</th><th>Display Name</th><th>Role</th><th>Branch</th></tr></thead><tbody>${(appState.settingsUsers||[]).map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.displayName)}</td><td>${esc(u.role)}</td><td>${u.branchId}</td></tr>`).join('') || '<tr><td colspan="4">Click Refresh Users to load users.</td></tr>'}</tbody></table></div>`;
+  } else if (tab === 'checkout') {
+    const checkout=getCheckoutSettings();
+    body = `
+      <div class="section-note"><b>Checkout routing:</b> Choose the default action shown at POS. Both Pay Here and Send to Cashier remain available so staff can change the route for an individual order.</div>
+      <div class="checkout-setting-cards">
+        <label class="checkout-setting-card ${checkout.defaultRoute==='here'?'selected':''}">
+          <input type="radio" name="defaultCheckoutRoute" value="here" ${checkout.defaultRoute==='here'?'checked':''}>
+          <span class="checkout-setting-icon">💳</span>
+          <span><b>Pay Here</b><small>Collect payment directly at the sale station. The sale is immediately payment complete.</small></span>
+        </label>
+        <label class="checkout-setting-card ${checkout.defaultRoute==='cashier'?'selected':''}">
+          <input type="radio" name="defaultCheckoutRoute" value="cashier" ${checkout.defaultRoute==='cashier'?'checked':''}>
+          <span class="checkout-setting-icon">💵</span>
+          <span><b>Send to Cashier</b><small>Complete the order with Payment Status: Pending. Cashier collects payment later.</small></span>
+        </label>
+      </div>
+      <div class="checkout-actions"><button class="btn-success" id="saveCheckoutSettingsBtn">Save Checkout Setting</button></div>`;
   } else if (tab === 'directions') {
     const templates=getDirectionTemplates();
     body = `
@@ -552,7 +570,7 @@ function settingsView() {
     body = `<div class="form-grid"><div class="field"><label>Connection</label><input value="${navigator.onLine?'Online':'Offline'}" disabled></div><div class="field"><label>Pending Offline Sales</label><input id="pendingSalesCount" value="Checking..." disabled></div></div><div class="checkout-actions"><button class="btn-primary" id="systemSyncBtn">Sync Now</button><button class="btn-light" id="clearOfflineCacheBtn">Refresh Local Cache</button></div>`;
   }
 
-  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('directions')}" data-settings-tab="directions">Directions</button><button class="tab${active('printers')}" data-settings-tab="printers">Printers</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
+  return `<div class="page-header"><div><h1>Settings</h1><p>Pharmacy, invoice, users, backup and system options</p></div></div><div class="panel"><div class="tabs"><button class="tab${active('general')}" data-settings-tab="general">General</button><button class="tab${active('invoice')}" data-settings-tab="invoice">Invoice</button><button class="tab${active('users')}" data-settings-tab="users">Users</button><button class="tab${active('checkout')}" data-settings-tab="checkout">Checkout</button><button class="tab${active('directions')}" data-settings-tab="directions">Directions</button><button class="tab${active('printers')}" data-settings-tab="printers">Printers</button><button class="tab${active('backup')}" data-settings-tab="backup">Backup</button><button class="tab${active('system')}" data-settings-tab="system">System</button></div><div class="panel-body">${body}</div></div>`;
 }
 
 /*
@@ -574,6 +592,7 @@ function saasView() {
 function bindCurrentScreen() {
   document.querySelectorAll('[data-go]').forEach(btn=>btn.addEventListener('click',()=>{appState.view=btn.dataset.go;render();}));
   if (appState.view === 'pos') bindPos();
+  if (appState.view === 'cashier') bindCashier();
   if (appState.view === 'products') bindProducts();
   if (appState.view === 'purchase') bindPurchase();
   if (appState.view === 'stock') bindStock();
@@ -928,6 +947,13 @@ async function bindSettings() {
   });
 
   document.getElementById('addSettingsUserBtn')?.addEventListener('click',()=>showAddSettingsUserModal());
+
+  document.getElementById('saveCheckoutSettingsBtn')?.addEventListener('click',()=>{
+    const route=document.querySelector('input[name="defaultCheckoutRoute"]:checked')?.value||'here';
+    saveCheckoutSettings({defaultRoute:route});
+    toast(route==='cashier'?'Default checkout set to Send to Cashier.':'Default checkout set to Pay Here.');
+    render();
+  });
 
   /*
    PURPOSE:
@@ -2667,4 +2693,365 @@ function bindPos(){
   });
 
   setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ CASHIER + PENDING PAYMENT WORKFLOW — v5.4
+ PURPOSE:
+ Supports two checkout routes:
+ 1) Pay Here: payment is completed at the sale station.
+ 2) Send to Cashier: sale is created with Payment Status Pending and is collected
+    from the Cashier screen later.
+ REFERENCE:
+ Pending state uses the existing Sale.PaymentMethod marker PENDING::<method> so
+ existing MSSQL LocalDB installations do not require a schema reset.
+============================================================================ */
+
+/* PURPOSE: Default tenant/browser checkout-routing setting. */
+function defaultCheckoutSettings(){
+  return {defaultRoute:'here'};
+}
+
+/* PURPOSE: Tenant-specific storage key for checkout routing. */
+function checkoutSettingsStorageKey(){
+  return `pharmacare.checkoutSettings.${appState.session?.tenantId||'default'}`;
+}
+
+/* PURPOSE: Reads the default checkout route selected in Settings > Checkout. */
+function getCheckoutSettings(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(checkoutSettingsStorageKey())||'null');
+    return {...defaultCheckoutSettings(),...(saved||{})};
+  }catch{
+    return defaultCheckoutSettings();
+  }
+}
+
+/* PURPOSE: Saves the default checkout route. */
+function saveCheckoutSettings(settings){
+  localStorage.setItem(checkoutSettingsStorageKey(),JSON.stringify({...defaultCheckoutSettings(),...settings}));
+}
+
+/*
+ PURPOSE:
+ v5.4 POS renderer with explicit Pay Here and Send to Cashier actions.
+ REFERENCE:
+ Customer lookup, barcode scanning, batch, quantity, directions and printer
+ workflows are retained from prior versions.
+*/
+function posView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+l.quantity*l.unitPrice,0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const checkout=getCheckoutSettings();
+
+  return `<div class="page-header"><div><h1>POS Sales</h1><p>Fast billing with patient, batch, expiry and cashier routing</p></div><span class="sync-pill">${navigator.onLine?'🟢 Online sync ready':'🟠 Offline queue ready'}</span></div>
+  ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode: invoices are saved locally first. Cashier-bound orders appear at Cashier after synchronization.</div>'}
+  <div class="pos-grid">
+    <div class="panel product-search-panel">
+      <div class="panel-head"><span>Find Medicine</span><span class="badge blue">F2 Search</span></div>
+      <div class="pos-search"><input id="posSearch" placeholder="Scan barcode or search medicine..."><button class="btn-primary" id="posSearchBtn">Search</button></div>
+      <div class="product-list">${appState.products.slice(0,1000).map(p=>`
+        <div class="product-row ${p.id===appState.selectedProductId?'selected':''}" data-product-id="${p.id}">
+          <div><b>${esc(p.name)}</b><br><small>${esc(p.genericName||'')}</small></div>
+          <div>${esc(p.strength||'')}</div>
+          <div>${money(p.sellingPrice)}</div>
+          <div>${stockForProduct(p.id)}</div>
+        </div>`).join('')}</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span>Cart (${appState.cart.length} items)</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear All</button></div>
+      <div class="panel-body">
+        <div class="pos-customer-bar">
+          <div class="pos-customer-current">
+            <span class="pos-customer-label">Customer / Patient</span>
+            <div>
+              ${patient
+                ? `<b>${esc(patient.name)}</b><small>${esc(patient.phone||'No phone')} ${patient.email?'• '+esc(patient.email):''}</small>`
+                : '<b>Walk-in Customer</b><small>No patient selected</small>'}
+            </div>
+          </div>
+          <button class="btn-primary" id="customerLookupBtn">🔎 Customer Lookup</button>
+          <button class="btn-light" id="quickAddPatientBtn">+ New Patient</button>
+          ${patient?'<button class="btn-light" id="clearCustomerBtn">Walk-in</button>':''}
+        </div>
+
+        ${patient && (patient.allergies||patient.medicalConditions)
+          ? `<div class="patient-alert-strip">
+              ${patient.allergies?`<span><b>Allergies:</b> ${esc(patient.allergies)}</span>`:''}
+              ${patient.medicalConditions?`<span><b>Conditions:</b> ${esc(patient.medicalConditions)}</span>`:''}
+             </div>`
+          : ''}
+
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>
+        ${appState.cart.map((l,i)=>`<tr><td><b>${esc(l.productName)}</b>${l.directions?`<br><small class="directions-line">${esc(l.directions)}</small>`:''}</td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button> `:''}<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Scan or select a medicine to begin.</td></tr>'}
+        </tbody></table></div>
+
+        <div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div>
+
+        <div style="margin-top:14px">
+          <b>Payment Method</b>
+          <div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div>
+        </div>
+
+        <div class="checkout-route-note">Default: <b>${checkout.defaultRoute==='cashier'?'Send to Cashier':'Pay Here'}</b> <span>• Change in Settings → Checkout</span></div>
+        <div class="checkout-actions checkout-two-way">
+          <button class="btn-light" id="holdSaleBtn">Hold</button>
+          <button class="btn-light" id="printBtn">Print</button>
+          <button class="${checkout.defaultRoute==='here'?'btn-success':'btn-primary'} btn-lg" id="payHereBtn" ${appState.cart.length?'':'disabled'}>💳 Pay Here</button>
+          <button class="${checkout.defaultRoute==='cashier'?'btn-success':'btn-purple'} btn-lg" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}>💵 Send to Cashier</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ v5.4 POS event binding including the two checkout actions.
+ REFERENCE:
+ Barcode Enter behavior and customer lookup remain active.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  const filter=()=>{
+    const q=(search?.value||'').toLowerCase();
+    document.querySelectorAll('.product-row').forEach(row=>{
+      const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+      row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none';
+    });
+  };
+
+  search?.addEventListener('input',filter);
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const value=String(search.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filter();
+      return;
+    }
+    filter();
+    toast(value?`No exact barcode match for ${value}.`:'Scan or enter a barcode.','warning');
+    search.select();
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filter();
+    }else filter();
+  });
+
+  document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{appState.selectedCustomerId=null;render();toast('Walk-in Customer selected.');});
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));
+
+  document.getElementById('payHereBtn')?.addEventListener('click',()=>completeSale('here'));
+  document.getElementById('sendCashierBtn')?.addEventListener('click',()=>completeSale('cashier'));
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    render();
+    toast('Sale held locally.');
+  });
+
+  setTimeout(()=>search?.focus(),0);
+}
+
+/*
+ PURPOSE:
+ Completes a POS order using either immediate payment or cashier-pending payment.
+ REFERENCE:
+ Pending cashier orders use PENDING::<suggested method> until Cashier marks paid.
+*/
+async function completeSale(route='here'){
+  if(!appState.cart.length)return;
+
+  const checkoutRoute=route==='cashier'?'cashier':'here';
+  const printCart=appState.cart.map(x=>({...x}));
+  const printCustomerId=appState.selectedCustomerId||null;
+  const opId=crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`;
+
+  const serverPaymentMethod=checkoutRoute==='cashier'
+    ? `PENDING::${appState.paymentMethod||'Cash'}`
+    : (appState.paymentMethod||'Cash');
+
+  const sale={
+    tenantId:appState.session.tenantId,
+    branchId:appState.session.branchId,
+    clientOperationId:opId,
+    discount:0,
+    paymentMethod:serverPaymentMethod,
+    customerId:printCustomerId,
+    lines:appState.cart.map(x=>({batchId:x.batchId,quantity:x.quantity})),
+    localCreatedUtc:new Date().toISOString(),
+    status:'pending'
+  };
+
+  await PharmaOffline.put('pendingSales',opId,sale);
+
+  for(const line of appState.cart){
+    const b=appState.batches.find(x=>x.id===line.batchId);
+    if(b)b.quantity=Math.max(0,Number(b.quantity)-Number(line.quantity));
+  }
+  await PharmaOffline.replaceAll('batches',appState.batches);
+
+  const ps=getPrinterSettings();
+  if(checkoutRoute==='here' && ps.autoPrintBill){
+    const oldCustomerId=appState.selectedCustomerId;
+    appState.selectedCustomerId=printCustomerId;
+    await printHtmlToConfiguredPrinter('bill',buildBillHtml(printCart));
+    appState.selectedCustomerId=oldCustomerId;
+  }
+
+  appState.cart=[];
+  appState.selectedCustomerId=null;
+  render();
+
+  if(checkoutRoute==='cashier'){
+    toast(navigator.onLine
+      ? 'Order sent to Cashier with Payment Status: Pending.'
+      : 'Order saved offline. It will appear at Cashier after synchronization.','success');
+  }else{
+    toast(navigator.onLine?'Payment complete. Sale is synchronizing...':'Paid sale saved offline. It will sync automatically.','success');
+  }
+
+  if(navigator.onLine){
+    await syncPendingSales();
+    await refreshSnapshot();
+    await loadDashboard();
+    render();
+  }
+}
+
+/*
+ PURPOSE:
+ Renders the Cashier window where pending payments wait to be collected.
+ REFERENCE:
+ Data is loaded from the central server so multiple sale stations feed one cashier.
+*/
+function cashierView(){
+  return `
+  <div class="page-header">
+    <div><h1>Cashier</h1><p>Collect and complete payments sent from sales stations</p></div>
+    <button class="btn-primary" id="refreshCashierBtn">↻ Refresh Pending</button>
+  </div>
+  <div class="cards cashier-summary-cards">
+    <div class="metric orange"><div class="label">Pending Payments</div><div class="value" id="cashierPendingCount">—</div></div>
+    <div class="metric purple"><div class="label">Pending Value</div><div class="value" id="cashierPendingValue">—</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><span>Pending Payment Queue</span><span class="badge orange">Payment Pending</span></div>
+    <div class="panel-body" id="cashierPendingBody">
+      <div class="empty">Loading pending payments...</div>
+    </div>
+  </div>`;
+}
+
+/* PURPOSE: Loads pending payment orders into the Cashier screen. */
+async function loadCashierPending(){
+  const body=document.getElementById('cashierPendingBody');
+  if(!body)return;
+
+  if(!navigator.onLine){
+    body.innerHTML='<div class="empty">Cashier requires a server connection. Offline POS orders will appear here after they synchronize.</div>';
+    return;
+  }
+
+  try{
+    const rows=await api(`/api/cashier/pending?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`);
+    const total=rows.reduce((sum,x)=>sum+Number(x.total||0),0);
+    const count=document.getElementById('cashierPendingCount');
+    const value=document.getElementById('cashierPendingValue');
+    if(count)count.textContent=String(rows.length);
+    if(value)value.textContent=money(total);
+
+    body.innerHTML=rows.length?`
+      <div class="table-wrap">
+        <table class="data-table cashier-table">
+          <thead><tr><th>Invoice</th><th>Time</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>
+            ${rows.map(row=>`
+              <tr>
+                <td><b>${esc(row.invoiceNo)}</b></td>
+                <td>${new Date(row.createdUtc).toLocaleString()}</td>
+                <td><b>${esc(row.customerName||'Walk-in Customer')}</b><br><small class="muted">${esc(row.customerPhone||'')}</small></td>
+                <td><b class="cashier-amount">${money(row.total)}</b></td>
+                <td>
+                  <select class="cashier-payment-method" data-cashier-method="${row.id}">
+                    ${['Cash','Card','UPI','Split'].map(x=>`<option ${String(row.suggestedPaymentMethod||'').toLowerCase()===x.toLowerCase()?'selected':''}>${x}</option>`).join('')}
+                  </select>
+                </td>
+                <td><span class="badge orange">Pending</span></td>
+                <td><button class="btn-success" data-complete-payment="${row.id}">✓ Payment Complete</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`
+      : '<div class="empty cashier-empty">✓ No pending payments. Cashier queue is clear.</div>';
+
+    body.querySelectorAll('[data-complete-payment]').forEach(btn=>btn.onclick=async()=>{
+      const saleId=Number(btn.dataset.completePayment);
+      const select=body.querySelector(`[data-cashier-method="${saleId}"]`);
+      const paymentMethod=select?.value||'Cash';
+
+      if(!confirm(`Confirm payment received by ${paymentMethod}?`))return;
+
+      btn.disabled=true;
+      btn.textContent='Completing...';
+      try{
+        await api(`/api/cashier/${saleId}/complete`,{
+          method:'PUT',
+          body:JSON.stringify({
+            tenantId:appState.session.tenantId,
+            branchId:appState.session.branchId,
+            paymentMethod
+          })
+        });
+        toast('Payment marked complete.','success');
+        await loadCashierPending();
+      }catch(e){
+        btn.disabled=false;
+        btn.textContent='✓ Payment Complete';
+        toast(e.message,'error');
+      }
+    });
+  }catch(e){
+    body.innerHTML=`<div class="empty">Unable to load cashier queue: ${esc(e.message)}</div>`;
+  }
+}
+
+/* PURPOSE: Wires Cashier refresh and loads the queue on entry. */
+function bindCashier(){
+  document.getElementById('refreshCashierBtn')?.addEventListener('click',loadCashierPending);
+  loadCashierPending();
 }
