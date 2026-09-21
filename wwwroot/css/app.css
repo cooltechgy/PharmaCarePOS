@@ -274,3 +274,34 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .report-company-header{display:block}
   .report-company-meta{text-align:left;margin-top:10px}
 }
+
+
+/* Customer lookup one-line rows — v6.0 */
+.customer-lookup-head,
+.customer-lookup-one-line{
+  display:grid;
+  grid-template-columns:minmax(160px,1.25fr) 90px 135px minmax(190px,1.3fr) minmax(220px,1.5fr) 84px;
+  gap:12px;
+  align-items:center;
+}
+.customer-lookup-head{padding:9px 12px;background:#f1f6fa;border-bottom:1px solid #dce7ef;font-size:11px;font-weight:850;color:#60778a;text-transform:uppercase;letter-spacing:.35px}
+.customer-lookup-one-line{padding:11px 12px;border-bottom:1px solid #e8eef3;background:#fff}
+.customer-lookup-one-line:last-child{border-bottom:0}
+.customer-lookup-one-line:hover,.customer-lookup-one-line.selected{background:#f4faff}
+.customer-cell{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.customer-name-cell b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.customer-email-cell{color:#51697d}
+.customer-lookup-action{justify-self:end}
+.customer-lookup-search input{width:100%}
+@media(max-width:980px){
+  .customer-lookup-head{display:none}
+  .customer-lookup-one-line{grid-template-columns:1.2fr .7fr 1fr 1.3fr}
+  .customer-lookup-one-line .customer-lookup-alerts{grid-column:1/4}
+  .customer-lookup-one-line .customer-lookup-action{grid-column:4;grid-row:1/3}
+}
+@media(max-width:700px){
+  .customer-lookup-one-line{grid-template-columns:1fr;gap:7px}
+  .customer-lookup-one-line .customer-lookup-alerts,
+  .customer-lookup-one-line .customer-lookup-action{grid-column:auto;grid-row:auto}
+  .customer-lookup-action{justify-self:start}
+}
