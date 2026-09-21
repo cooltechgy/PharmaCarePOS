@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pharmacare-shell-v5-8';
-const SHELL = ['/', '/index.html', '/css/app.css', '/js/app.js', '/js/offline-db.js', '/manifest.webmanifest'];
+const CACHE_NAME = 'pharmacare-shell-v5-9';
+const SHELL = ['/', '/index.html', '/css/app.css', '/js/app.js', '/js/offline-db.js', '/lib/jspdf.umd.min.js', '/lib/jspdf.plugin.autotable.min.js', '/manifest.webmanifest'];
 
 /*
  PURPOSE:
