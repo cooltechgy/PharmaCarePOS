@@ -237,3 +237,22 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 .report-card{cursor:pointer}
 .report-card small{display:block;margin-top:6px}
 @media(max-width:600px){.payment-confirm-grid{grid-template-columns:1fr}}
+
+
+/* Customer lookup vertical list — v5.8 */
+.customer-lookup-table{border:1px solid #dce7ef;border-radius:10px;overflow:hidden;background:#fff}
+.customer-lookup-head,
+.customer-lookup-item{display:grid;grid-template-columns:1.15fr 1.2fr 1.35fr auto;gap:14px;align-items:center}
+.customer-lookup-head{padding:9px 12px;background:#f1f6fa;border-bottom:1px solid #dce7ef;font-size:11px;font-weight:850;color:#60778a;text-transform:uppercase;letter-spacing:.35px}
+.customer-lookup-item{padding:12px;border-bottom:1px solid #e8eef3}
+.customer-lookup-item:last-child{border-bottom:0}
+.customer-lookup-item:hover,.customer-lookup-item.selected{background:#f4faff}
+.customer-lookup-main b,.customer-lookup-main small,.customer-lookup-contact span,.customer-lookup-contact small{display:block}
+.customer-lookup-main small,.customer-lookup-contact small{margin-top:3px;color:#71869a}
+.customer-lookup-action{justify-self:end}
+.customer-lookup-alerts{display:flex;gap:5px;flex-wrap:wrap}
+@media(max-width:760px){
+  .customer-lookup-head{display:none}
+  .customer-lookup-item{grid-template-columns:1fr;gap:8px}
+  .customer-lookup-action{justify-self:start}
+}
