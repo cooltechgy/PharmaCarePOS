@@ -222,3 +222,18 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .pos-customer-inline-details{flex-wrap:wrap;overflow:visible}
   .pos-customer-inline-actions{flex-wrap:wrap}
 }
+
+
+/* Payment confirmation + PDF reports — v5.6 */
+.payment-confirm-modal{width:min(560px,94vw)}
+.payment-confirm-amount{text-align:center;padding:18px;border-radius:12px;background:linear-gradient(135deg,#eef8ff,#f8fcff);border:1px solid #d5e9f7;margin-bottom:14px}
+.payment-confirm-amount span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#688197;font-weight:800}
+.payment-confirm-amount strong{display:block;margin-top:4px;font-size:32px;color:#0d6fae}
+.payment-confirm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.payment-confirm-grid>div{padding:11px;border:1px solid #e0e9ef;border-radius:9px;background:#fbfdff}
+.payment-confirm-grid span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#71879a;font-weight:800;margin-bottom:4px}
+.payment-confirm-grid b{display:block;font-size:14px;overflow-wrap:anywhere}
+.report-pdf-note{margin-bottom:14px;padding:11px 13px;border-radius:9px;background:#edf7ff;border:1px solid #cfe6f7;color:#315f7f;font-size:12px}
+.report-card{cursor:pointer}
+.report-card small{display:block;margin-top:6px}
+@media(max-width:600px){.payment-confirm-grid{grid-template-columns:1fr}}
