@@ -2264,3 +2264,152 @@ async function printDirectionLabel(line){
 
   await printHtmlToConfiguredPrinter('label',html);
 }
+
+
+/* ============================================================================
+ POS BARCODE SCANNING
+ PURPOSE:
+ Makes a scanner behave like a real checkout input. Barcode scanners normally
+ type the code into the focused field and finish with Enter.
+ REFERENCE:
+ Exact barcode matches bypass text-search filtering and continue directly into
+ the batch/quantity dispensing flow.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Finds an exact product barcode and opens the shortest safe dispensing flow.
+ REFERENCE:
+ One valid batch goes straight to quantity. Multiple valid batches require the
+ cashier to choose a batch. Expired and zero-stock batches are never selected.
+*/
+function handlePosBarcodeScan(rawBarcode){
+  const barcode=String(rawBarcode||'').trim();
+  if(!barcode)return false;
+
+  const product=appState.products.find(p=>
+    String(p.barcode||'').trim().toLowerCase()===barcode.toLowerCase()
+  );
+
+  if(!product){
+    toast(`Barcode not found: ${barcode}`,'warning');
+    return false;
+  }
+
+  const validBatches=appState.batches
+    .filter(b=>b.productId===product.id && Number(b.quantity)>0 && daysLeft(b.expiryDate)>=0)
+    .sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+
+  appState.selectedProductId=product.id;
+
+  if(!validBatches.length){
+    toast(`${product.name} was found, but it has no valid in-stock batch.`,'warning');
+    return true;
+  }
+
+  appState.selectedBatchId=validBatches[0].id;
+
+  if(validBatches.length===1){
+    showQuantityModal(product,validBatches[0]);
+  }else{
+    showBatchSelectionModal(product.id);
+  }
+  return true;
+}
+
+/*
+ PURPOSE:
+ Wires barcode Enter handling while preserving normal medicine text search.
+ REFERENCE:
+ Search button filters the product list; scanner Enter first checks for an exact
+ barcode match and only falls back to normal filtering when no exact barcode exists.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  const filter=()=>{
+    const q=(search?.value||'').toLowerCase();
+    document.querySelectorAll('.product-row').forEach(row=>{
+      const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+      row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none';
+    });
+  };
+
+  search?.addEventListener('input',filter);
+
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+
+    const scanned=String(search.value||'').trim();
+    const exact=appState.products.some(p=>
+      String(p.barcode||'').trim().toLowerCase()===scanned.toLowerCase()
+    );
+
+    if(exact){
+      handlePosBarcodeScan(scanned);
+      search.value='';
+      filter();
+      return;
+    }
+
+    filter();
+    toast(scanned?`No exact barcode match for ${scanned}.`:'Scan or enter a barcode.','warning');
+    search.select();
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>
+      String(p.barcode||'').trim().toLowerCase()===value.toLowerCase()
+    );
+
+    if(exact){
+      handlePosBarcodeScan(value);
+      if(search)search.value='';
+      filter();
+    }else{
+      filter();
+    }
+  });
+
+  document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
+  document.getElementById('posCustomer')?.addEventListener('change',e=>{appState.selectedCustomerId=e.target.value?Number(e.target.value):null;});
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));
+  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+  document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({
+      id:Date.now(),
+      cart:appState.cart,
+      paymentMethod:appState.paymentMethod,
+      customerId:appState.selectedCustomerId
+    });
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    render();
+    toast('Sale held locally.');
+  });
+
+  /*
+   PURPOSE:
+   Keeps the barcode field ready for the next scan when POS first opens.
+   REFERENCE:
+   Most USB barcode scanners emulate keyboard input.
+  */
+  setTimeout(()=>search?.focus(),0);
+}
