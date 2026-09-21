@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.2</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.3</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -2411,5 +2411,260 @@ function bindPos(){
    REFERENCE:
    Most USB barcode scanners emulate keyboard input.
   */
+  setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ POS CUSTOMER LOOKUP — v5.3
+ PURPOSE:
+ Adds a dedicated customer/patient lookup inside POS Sales.
+ REFERENCE:
+ Cashiers can search by patient name, phone, email, or patient ID, review key
+ pharmacy alerts, select the patient, or return to Walk-in Customer.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Renders the POS with a visible Customer Lookup action and selected-patient summary.
+ REFERENCE:
+ The medicine/barcode/cart workflow remains unchanged.
+*/
+function posView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+l.quantity*l.unitPrice,0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+
+  return `<div class="page-header"><div><h1>POS Sales</h1><p>Fast billing with patient, batch & expiry control</p></div><span class="sync-pill">${navigator.onLine?'🟢 Online sync ready':'🟠 Offline queue ready'}</span></div>
+  ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode: invoices are saved locally first and synchronized later.</div>'}
+  <div class="pos-grid">
+    <div class="panel product-search-panel">
+      <div class="panel-head"><span>Find Medicine</span><span class="badge blue">F2 Search</span></div>
+      <div class="pos-search"><input id="posSearch" placeholder="Scan barcode or search medicine..."><button class="btn-primary" id="posSearchBtn">Search</button></div>
+      <div class="product-list">${appState.products.slice(0,1000).map(p=>`
+        <div class="product-row ${p.id===appState.selectedProductId?'selected':''}" data-product-id="${p.id}">
+          <div><b>${esc(p.name)}</b><br><small>${esc(p.genericName||'')}</small></div>
+          <div>${esc(p.strength||'')}</div>
+          <div>${money(p.sellingPrice)}</div>
+          <div>${stockForProduct(p.id)}</div>
+        </div>`).join('')}</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span>Cart (${appState.cart.length} items)</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear All</button></div>
+      <div class="panel-body">
+        <div class="pos-customer-bar">
+          <div class="pos-customer-current">
+            <span class="pos-customer-label">Customer / Patient</span>
+            <div id="selectedCustomerSummary">
+              ${patient
+                ? `<b>${esc(patient.name)}</b><small>${esc(patient.phone||'No phone')} ${patient.email?'• '+esc(patient.email):''}</small>`
+                : '<b>Walk-in Customer</b><small>No patient selected</small>'}
+            </div>
+          </div>
+          <button class="btn-primary" id="customerLookupBtn">🔎 Customer Lookup</button>
+          <button class="btn-light" id="quickAddPatientBtn">+ New Patient</button>
+          ${patient?'<button class="btn-light" id="clearCustomerBtn">Walk-in</button>':''}
+        </div>
+
+        ${patient && (patient.allergies||patient.medicalConditions)
+          ? `<div class="patient-alert-strip">
+              ${patient.allergies?`<span><b>Allergies:</b> ${esc(patient.allergies)}</span>`:''}
+              ${patient.medicalConditions?`<span><b>Conditions:</b> ${esc(patient.medicalConditions)}</span>`:''}
+             </div>`
+          : ''}
+
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead><tbody>
+        ${appState.cart.map((l,i)=>`<tr><td><b>${esc(l.productName)}</b>${l.directions?`<br><small class="directions-line">${esc(l.directions)}</small>`:''}</td><td>${esc(l.batchNo)}</td><td>${fmtDate(l.expiryDate)}</td><td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}" style="width:70px"></td><td>${money(l.unitPrice)}</td><td>${money(l.quantity*l.unitPrice)}</td><td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button> `:''}<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td></tr>`).join('')||'<tr><td colspan="7" class="empty">Scan or select a medicine to begin.</td></tr>'}
+        </tbody></table></div>
+
+        <div class="cart-summary"><div class="sum-box">Subtotal<strong>${money(subtotal)}</strong></div><div class="sum-box">Discount<strong>${money(0)}</strong></div><div class="sum-box total-box">Total<strong>${money(subtotal)}</strong></div></div>
+        <div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div>
+        <div class="checkout-actions"><button class="btn-light" id="holdSaleBtn">Hold</button><button class="btn-light" id="printBtn">Print</button><button class="btn-success btn-lg" id="completeSaleBtn" ${appState.cart.length?'':'disabled'}>Complete Sale</button></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ Opens an in-POS customer lookup with search and patient alert details.
+ REFERENCE:
+ Search covers full name, phone, email and numeric patient ID.
+*/
+function showPosCustomerLookup(){
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+
+  host.innerHTML=`
+    <div class="modal wide customer-lookup-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Customer Lookup</b>
+          <div class="muted">Search by name, phone, email, or patient ID.</div>
+        </div>
+        <button class="close-btn" id="customerLookupClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="customer-lookup-search">
+          <input id="customerLookupSearch" placeholder="Search patient..." autocomplete="off">
+          <button class="btn-light" id="customerLookupWalkIn">Use Walk-in Customer</button>
+        </div>
+        <div id="customerLookupResults"></div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(host);
+
+  const input=document.getElementById('customerLookupSearch');
+  const results=document.getElementById('customerLookupResults');
+  const close=()=>host.remove();
+
+  const renderResults=()=>{
+    const q=String(input.value||'').trim().toLowerCase();
+    const list=appState.customers
+      .filter(c=>{
+        if(!q)return true;
+        return `${c.id} ${c.name||''} ${c.phone||''} ${c.email||''}`.toLowerCase().includes(q);
+      })
+      .slice(0,50);
+
+    results.innerHTML=`
+      <div class="customer-lookup-count">${list.length} patient${list.length===1?'':'s'} found</div>
+      <div class="customer-lookup-list">
+        ${list.map(c=>`
+          <button type="button" class="customer-lookup-row ${Number(appState.selectedCustomerId)===c.id?'selected':''}" data-select-customer="${c.id}">
+            <div class="customer-lookup-main">
+              <b>${esc(c.name)}</b>
+              <small>ID #${c.id} • ${esc(c.phone||'No phone')} ${c.email?'• '+esc(c.email):''}</small>
+            </div>
+            <div class="customer-lookup-alerts">
+              ${c.allergies?`<span class="lookup-alert allergy">Allergy: ${esc(c.allergies)}</span>`:''}
+              ${c.medicalConditions?`<span class="lookup-alert condition">Condition: ${esc(c.medicalConditions)}</span>`:''}
+              ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts recorded</span>':''}
+            </div>
+            <span class="customer-select-text">Select</span>
+          </button>`).join('') || '<div class="empty">No matching patients.</div>'}
+      </div>`;
+
+    results.querySelectorAll('[data-select-customer]').forEach(btn=>btn.onclick=()=>{
+      appState.selectedCustomerId=Number(btn.dataset.selectCustomer);
+      close();
+      render();
+      toast('Patient selected.');
+    });
+  };
+
+  document.getElementById('customerLookupClose').onclick=close;
+  document.getElementById('customerLookupWalkIn').onclick=()=>{
+    appState.selectedCustomerId=null;
+    close();
+    render();
+    toast('Walk-in Customer selected.');
+  };
+
+  input.addEventListener('input',renderResults);
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      const first=results.querySelector('[data-select-customer]');
+      if(first){
+        e.preventDefault();
+        first.click();
+      }
+    }
+  });
+
+  renderResults();
+  setTimeout(()=>input.focus(),0);
+}
+
+/*
+ PURPOSE:
+ Wires v5.3 POS including customer lookup and barcode auto-entry.
+ REFERENCE:
+ Exact barcode Enter handling, batch selection, quantities and offline sale behavior
+ are preserved from v5.1/v5.2.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  const filter=()=>{
+    const q=(search?.value||'').toLowerCase();
+    document.querySelectorAll('.product-row').forEach(row=>{
+      const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+      row.style.display=!q||`${p?.name} ${p?.genericName} ${p?.barcode} ${p?.rxNormId}`.toLowerCase().includes(q)?'':'none';
+    });
+  };
+
+  search?.addEventListener('input',filter);
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const value=String(search.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filter();
+      return;
+    }
+
+    filter();
+    toast(value?`No exact barcode match for ${value}.`:'Scan or enter a barcode.','warning');
+    search.select();
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filter();
+    }else{
+      filter();
+    }
+  });
+
+  document.querySelectorAll('[data-product-id]').forEach(row=>row.onclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{
+    appState.selectedCustomerId=null;
+    render();
+    toast('Walk-in Customer selected.');
+  });
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.addEventListener('click',()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])));
+  document.getElementById('completeSaleBtn')?.addEventListener('click',completeSale);
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  document.getElementById('holdSaleBtn')?.addEventListener('click',()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({
+      id:Date.now(),
+      cart:appState.cart,
+      paymentMethod:appState.paymentMethod,
+      customerId:appState.selectedCustomerId
+    });
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    render();
+    toast('Sale held locally.');
+  });
+
   setTimeout(()=>search?.focus(),0);
 }
