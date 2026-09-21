@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.1</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.2</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -3891,4 +3891,328 @@ async function saveReportPdf(report){
     console.error(error);
     toast(`PDF download failed: ${error.message}`,'error');
   }
+}
+
+
+/* ============================================================================
+ POS WORKSPACE REDESIGN — v6.2
+ PURPOSE:
+ Rebuilds the POS Sales workspace around the approved modern pharmacy mockup while
+ preserving barcode, batch, quantity, directions, patient, cashier and offline logic.
+ REFERENCE:
+ Layout: patient strip → product search/table + cart → recent sales + quick actions.
+============================================================================ */
+
+/* PURPOSE: Returns unique non-empty product field values for POS filters. */
+function posFilterValues(field){
+  return [...new Set(appState.products.map(p=>String(p?.[field]||'').trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b));
+}
+
+/*
+ PURPOSE:
+ Renders the redesigned POS workstation.
+ REFERENCE:
+ Existing element IDs/data attributes are preserved where practical so existing
+ workflows remain easy to maintain.
+*/
+function posView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const checkout=getCheckoutSettings();
+  const categories=posFilterValues('category');
+  const manufacturers=posFilterValues('manufacturer');
+  const pendingCount=appState.cart.length;
+
+  return `
+  <div class="pos-workspace-v62">
+    <div class="pos-v62-titlebar">
+      <div class="pos-v62-title">
+        <span class="pos-v62-title-icon">🛒</span>
+        <div><h1>POS Sales</h1><p>Scan or search products, add to cart and complete sale.</p></div>
+      </div>
+      <div class="pos-v62-status">
+        <span class="sync-pill">${navigator.onLine?'● Online':'● Offline'}</span>
+        <span>${new Date().toLocaleDateString()} &nbsp; ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+    </div>
+
+    ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode is active. Sales are stored locally and synchronize when the connection returns.</div>'}
+
+    <section class="pos-v62-customer-strip">
+      <div class="pos-v62-customer-icon">👤</div>
+      <b>Customer / Patient</b>
+      <div class="pos-v62-customer-data">
+        <strong>${patient?esc(patient.name):'Walk-in Customer'}</strong>
+        ${patient?`<span>(ID: #${patient.id})</span>`:''}
+        ${patient?.phone?`<span>☎ ${esc(patient.phone)}</span>`:''}
+        ${patient?.email?`<span>✉ ${esc(patient.email)}</span>`:''}
+        ${patient?.allergies?`<span class="pos-v62-alert">Allergy: ${esc(patient.allergies)}</span>`:'<span class="pos-v62-ok">No alerts</span>'}
+      </div>
+      <div class="pos-v62-customer-actions">
+        <button class="btn-primary" id="customerLookupBtn">⌕ Lookup</button>
+        <button class="btn-light" id="quickAddPatientBtn">＋ New Patient</button>
+        <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>👥 Walk-in</button>
+      </div>
+    </section>
+
+    <div class="pos-v62-main-grid">
+      <section class="panel pos-v62-products">
+        <div class="panel-head"><span>💊 Product Search</span><span class="badge blue">Barcode Ready</span></div>
+        <div class="panel-body">
+          <div class="pos-v62-search-row">
+            <div class="pos-v62-search-box">
+              <span>⌕</span>
+              <input id="posSearch" placeholder="Type product name, barcode, or RxNorm ID..." autocomplete="off">
+            </div>
+            <button class="btn-primary" id="posSearchBtn">Search</button>
+          </div>
+
+          <div class="pos-v62-filter-row">
+            <select id="posCategoryFilter"><option value="">All Categories</option>${categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+            <select id="posManufacturerFilter"><option value="">All Manufacturers</option>${manufacturers.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+            <select id="posStockFilter"><option value="in">In Stock Only</option><option value="all">All Stock</option><option value="low">Low Stock ≤ 10</option></select>
+            <button class="btn-light" id="clearProductFiltersBtn">Clear</button>
+          </div>
+
+          <div class="pos-v62-product-count" id="posProductCount">Showing ${appState.products.length} products</div>
+          <div class="table-wrap pos-v62-product-table-wrap">
+            <table class="data-table pos-v62-product-table">
+              <thead><tr><th>Product</th><th>Strength</th><th>Form</th><th>Stock</th><th>Price</th><th>Action</th></tr></thead>
+              <tbody>
+              ${appState.products.slice(0,1000).map(p=>{
+                const stock=stockForProduct(p.id);
+                return `<tr class="pos-product-row" data-product-id="${p.id}" data-category="${esc(p.category||'')}" data-manufacturer="${esc(p.manufacturer||'')}" data-stock="${stock}">
+                  <td><b>${esc(p.name)}</b><small>${esc(p.genericName||'')}</small></td>
+                  <td>${esc(p.strength||'—')}</td>
+                  <td>${esc(p.dosageForm||'—')}</td>
+                  <td><b class="${Number(stock)<=10?'danger-text':'stock-good'}">${stock}</b></td>
+                  <td>${money(p.sellingPrice)}</td>
+                  <td><button class="btn-primary btn-xs" data-add-product="${p.id}">🛒 Add</button></td>
+                </tr>`;
+              }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel pos-v62-cart">
+        <div class="panel-head">
+          <span>🛒 Cart (${pendingCount} item${pendingCount===1?'':'s'})</span>
+          <button class="btn-danger btn-xs" id="clearCartBtn">Clear Cart</button>
+        </div>
+        <div class="panel-body pos-v62-cart-body">
+          <div class="table-wrap pos-v62-cart-table-wrap">
+            <table class="data-table pos-v62-cart-table">
+              <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th><th></th></tr></thead>
+              <tbody>
+                ${appState.cart.map((l,i)=>`<tr>
+                  <td><b>${esc(l.productName)}</b><small>Batch ${esc(l.batchNo)} • Exp ${fmtDate(l.expiryDate)}</small>${l.directions?`<small class="directions-line">${esc(l.directions)}</small>`:''}</td>
+                  <td>${money(l.unitPrice)}</td>
+                  <td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}"></td>
+                  <td><b>${money(Number(l.quantity)*Number(l.unitPrice))}</b></td>
+                  <td class="nowrap">${l.directions?`<button class="btn-light btn-xs" title="Print directions" data-print-directions="${i}">🖨</button>`:''}<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td>
+                </tr>`).join('')||'<tr><td colspan="5" class="empty">Cart is empty. Scan or add a product.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pos-v62-totals">
+            <div><span>Subtotal</span><b>${money(subtotal)}</b></div>
+            <div><span>Discount</span><b>${money(0)}</b></div>
+            <div class="pos-v62-total"><span>Total</span><strong>${money(subtotal)}</strong></div>
+          </div>
+
+          <div class="pos-v62-payment-block">
+            <label>Payment Method</label>
+            <div class="payment-row">${['Cash','Card','UPI','Split'].map(x=>`<button class="btn-light payment-btn ${appState.paymentMethod===x?'active':''}" data-payment="${x}">${x}</button>`).join('')}</div>
+          </div>
+
+          <div class="pos-v62-checkout-grid">
+            <button class="pos-v62-pay-here" id="payHereBtn" ${appState.cart.length?'':'disabled'}>
+              <b>💳 Pay Here</b><span>Complete payment at this station</span>
+            </button>
+            <button class="pos-v62-send-cashier" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}>
+              <b>👥 Send to Cashier</b><span>Order complete • Payment Pending</span>
+            </button>
+          </div>
+
+          <div class="pos-v62-secondary-actions">
+            <button class="btn-light" id="holdSaleBtn">Ⅱ Hold Sale</button>
+            <button class="btn-light" id="printBtn">🖨 Print</button>
+            <span>Default: <b>${checkout.defaultRoute==='cashier'?'Send to Cashier':'Pay Here'}</b></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="pos-v62-bottom-grid">
+      <section class="panel">
+        <div class="panel-head"><span>◷ Recent Sales</span><button class="btn-light btn-xs" id="viewAllSalesBtn">View Reports</button></div>
+        <div class="panel-body" id="posRecentSales">
+          <div class="empty">${navigator.onLine?'Loading recent sales...':'Recent server sales unavailable offline.'}</div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><span>⚡ Quick Actions</span></div>
+        <div class="panel-body">
+          <div class="pos-v62-quick-actions">
+            <button data-pos-quick="stock"><span>▣</span><b>Stock Check</b></button>
+            <button data-pos-quick="price"><span>🏷</span><b>Price Check</b></button>
+            <button data-pos-quick="hold"><span>Ⅱ</span><b>Hold Sale</b></button>
+            <button data-pos-quick="customer"><span>👤</span><b>Customer</b></button>
+            <button data-pos-quick="cashier"><span>💵</span><b>Cashier</b></button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
+
+/* PURPOSE: Applies product search/filter controls and updates the visible count. */
+function filterPosProducts(){
+  const q=String(document.getElementById('posSearch')?.value||'').trim().toLowerCase();
+  const category=document.getElementById('posCategoryFilter')?.value||'';
+  const manufacturer=document.getElementById('posManufacturerFilter')?.value||'';
+  const stockMode=document.getElementById('posStockFilter')?.value||'in';
+  let visible=0;
+
+  document.querySelectorAll('.pos-product-row').forEach(row=>{
+    const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+    const stock=Number(row.dataset.stock||0);
+    const text=`${p?.name||''} ${p?.genericName||''} ${p?.barcode||''} ${p?.rxNormId||''}`.toLowerCase();
+    const matchText=!q||text.includes(q);
+    const matchCategory=!category||String(p?.category||'')===category;
+    const matchManufacturer=!manufacturer||String(p?.manufacturer||'')===manufacturer;
+    const matchStock=stockMode==='all'||(stockMode==='in'&&stock>0)||(stockMode==='low'&&stock>0&&stock<=10);
+    const show=matchText&&matchCategory&&matchManufacturer&&matchStock;
+    row.style.display=show?'':'none';
+    if(show)visible++;
+  });
+
+  const count=document.getElementById('posProductCount');
+  if(count)count.textContent=`Showing ${visible} of ${appState.products.length} products`;
+}
+
+/* PURPOSE: Loads the latest invoices into the POS Recent Sales block. */
+async function loadPosRecentSales(){
+  const host=document.getElementById('posRecentSales');
+  if(!host||!navigator.onLine)return;
+
+  try{
+    const data=await api(`/api/reports/sales?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`);
+    const sales=(data.sales||[]).slice(0,5);
+    host.innerHTML=sales.length?`
+      <div class="table-wrap"><table class="data-table pos-v62-recent-table">
+        <thead><tr><th>Time</th><th>Invoice</th><th>Customer</th><th>Total</th><th>Status</th></tr></thead>
+        <tbody>${sales.map(s=>{
+          const customer=appState.customers.find(c=>c.id===Number(s.customerId));
+          const pending=String(s.paymentMethod||'').startsWith('PENDING::');
+          return `<tr><td>${new Date(s.createdUtc).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td><td><b>${esc(s.invoiceNo)}</b></td><td>${esc(customer?.name||'Walk-in')}</td><td>${money(s.total)}</td><td><span class="badge ${pending?'orange':'green'}">${pending?'Pending':'Paid'}</span></td></tr>`;
+        }).join('')}</tbody>
+      </table></div>`
+      : '<div class="empty">No recent sales yet.</div>';
+  }catch(e){
+    host.innerHTML='<div class="empty">Unable to load recent sales.</div>';
+  }
+}
+
+/*
+ PURPOSE:
+ Wires the redesigned POS without changing its underlying business flow.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  search?.addEventListener('input',filterPosProducts);
+  document.getElementById('posCategoryFilter')?.addEventListener('change',filterPosProducts);
+  document.getElementById('posManufacturerFilter')?.addEventListener('change',filterPosProducts);
+  document.getElementById('posStockFilter')?.addEventListener('change',filterPosProducts);
+
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const value=String(search.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filterPosProducts();
+    }else{
+      filterPosProducts();
+    }
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+    }
+    filterPosProducts();
+  });
+
+  document.getElementById('clearProductFiltersBtn')?.addEventListener('click',()=>{
+    if(search)search.value='';
+    const category=document.getElementById('posCategoryFilter'); if(category)category.value='';
+    const manufacturer=document.getElementById('posManufacturerFilter'); if(manufacturer)manufacturer.value='';
+    const stock=document.getElementById('posStockFilter'); if(stock)stock.value='in';
+    filterPosProducts();
+    search?.focus();
+  });
+
+  document.querySelectorAll('[data-add-product]').forEach(btn=>btn.onclick=e=>{
+    e.stopPropagation();
+    appState.selectedProductId=Number(btn.dataset.addProduct);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+  document.querySelectorAll('.pos-product-row').forEach(row=>row.ondblclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{appState.selectedCustomerId=null;render();toast('Walk-in Customer selected.');});
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.onclick=()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)]));
+
+  document.querySelectorAll('[data-payment]').forEach(btn=>btn.onclick=()=>{appState.paymentMethod=btn.dataset.payment;render();});
+  document.getElementById('payHereBtn')?.addEventListener('click',()=>completeSale('here'));
+  document.getElementById('sendCashierBtn')?.addEventListener('click',()=>completeSale('cashier'));
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  const holdCurrentSale=()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({id:Date.now(),cart:appState.cart,paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    render();
+    toast('Sale held locally.');
+  };
+  document.getElementById('holdSaleBtn')?.addEventListener('click',holdCurrentSale);
+
+  document.querySelectorAll('[data-pos-quick]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.posQuick;
+    if(action==='stock'){appState.view='stock';render();return;}
+    if(action==='price'){search?.focus();search?.select();return;}
+    if(action==='hold'){holdCurrentSale();return;}
+    if(action==='customer'){showPosCustomerLookup();return;}
+    if(action==='cashier'){appState.view='cashier';render();return;}
+  });
+
+  document.getElementById('viewAllSalesBtn')?.addEventListener('click',()=>{appState.view='reports';render();});
+
+  filterPosProducts();
+  loadPosRecentSales();
+  setTimeout(()=>search?.focus(),0);
 }
