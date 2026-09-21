@@ -106,3 +106,20 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 @media(max-width:760px){
   #testBillPrinterBtn,#testLabelPrinterBtn,#detectPrintersBtn,#savePrinterSettingsBtn{width:100%}
 }
+
+
+/* Sidebar version badge */
+.version-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:8px;
+  padding:4px 8px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.18);
+  color:#fff;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.3px;
+}
