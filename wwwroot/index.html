@@ -6,7 +6,45 @@
   <meta name="theme-color" content="#075985" />
   <title>PharmaCare POS</title>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/css/app.css?v=6.3" />
+  <link rel="stylesheet" href="/css/app.css?v=6.4" />
+
+  <style id="pos-v64-critical">
+    /* PURPOSE: Critical POS layout fallback so stale external CSS cannot collapse the approved desktop layout. */
+    .pos-workspace-v62{display:grid!important;gap:14px!important}
+    .pos-v62-titlebar{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:18px!important}
+    .pos-v62-title{display:flex!important;align-items:center!important;gap:12px!important}
+    .pos-v62-title h1{margin:0!important;font-size:28px!important;color:#18324a!important}
+    .pos-v62-title p{margin:3px 0 0!important;color:#71869a!important}
+    .pos-v62-status{display:flex!important;align-items:center!important;gap:12px!important;font-size:12px!important}
+    .pos-v62-customer-strip{display:grid!important;grid-template-columns:auto auto minmax(0,1fr) auto!important;gap:12px!important;align-items:center!important;padding:13px 15px!important;background:#fff!important;border:1px solid #dce7ef!important;border-radius:10px!important}
+    .pos-v62-customer-data{display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important;overflow:hidden!important;flex-wrap:nowrap!important}
+    .pos-v62-customer-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:nowrap!important}
+    .pos-v62-main-grid{display:grid!important;grid-template-columns:minmax(0,1.12fr) minmax(350px,.88fr)!important;gap:12px!important;align-items:start!important}
+    .pos-v62-bottom-grid{display:grid!important;grid-template-columns:minmax(0,1.12fr) minmax(360px,.88fr)!important;gap:12px!important}
+    .pos-v62-search-row{display:grid!important;grid-template-columns:1fr auto!important;gap:8px!important}
+    .pos-v62-filter-row{display:grid!important;grid-template-columns:minmax(120px,1fr) minmax(145px,1fr) minmax(120px,.9fr) auto!important;gap:8px!important;margin-top:10px!important}
+    .pos-v62-product-table-wrap{max-height:390px!important;overflow:auto!important}
+    .pos-v62-cart-body{display:grid!important;gap:12px!important}
+    .pos-v62-cart-table-wrap{max-height:250px!important;overflow:auto!important}
+    .pos-v62-totals>div{display:flex!important;justify-content:space-between!important;align-items:center!important;padding:10px 12px!important;border-bottom:1px solid #e6edf2!important}
+    .pos-v62-checkout-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important}
+    .pos-v62-pay-here,.pos-v62-send-cashier{display:grid!important;gap:5px!important;min-height:82px!important;padding:17px 14px!important;border:0!important;border-radius:9px!important;align-content:center!important}
+    .pos-v62-pay-here{background:linear-gradient(135deg,#0f934f,#1eb766)!important;color:#fff!important}
+    .pos-v62-send-cashier{background:linear-gradient(135deg,#ffc54b,#ffdc78)!important;color:#19324a!important}
+    .pos-v62-secondary-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:wrap!important}
+    .pos-v62-quick-actions{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:8px!important}
+    .pos-v62-quick-actions button{display:grid!important;gap:7px!important;place-items:center!important;padding:14px 8px!important;border:1px solid #dce7ef!important;border-radius:9px!important;background:#fff!important}
+    @media(max-width:860px){
+      .pos-v62-main-grid,.pos-v62-bottom-grid{grid-template-columns:1fr!important}
+      .pos-v62-customer-strip{grid-template-columns:auto 1fr!important}
+      .pos-v62-customer-data,.pos-v62-customer-actions{grid-column:1/-1!important;flex-wrap:wrap!important}
+      .pos-v62-filter-row{grid-template-columns:1fr 1fr!important}
+    }
+    @media(max-width:650px){
+      .pos-v62-search-row,.pos-v62-filter-row,.pos-v62-checkout-grid{grid-template-columns:1fr!important}
+      .pos-v62-quick-actions{grid-template-columns:repeat(2,1fr)!important}
+    }
+  </style>
 </head>
 <body>
   <!--
@@ -17,12 +55,12 @@
   -->
   <div id="app"></div>
   <div id="toastHost" class="toast-host"></div>
-  <script src="/js/offline-db.js?v=6.3"></script>
+  <script src="/js/offline-db.js?v=6.4"></script>
   <!-- PURPOSE: Optional local direct-print bridge. REFERENCE: QZ Tray exposes local printers to the browser when the desktop QZ Tray app is installed. -->
   <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.3.0/qz-tray.js"></script>
   <!-- PURPOSE: Client-side PDF report generation. REFERENCE: jsPDF + AutoTable generate downloadable pharmacy reports with repeating company headers. -->
-  <script src="/lib/jspdf.umd.min.js?v=6.3"></script>
-  <script src="/lib/jspdf.plugin.autotable.min.js?v=6.3"></script>
-  <script src="/js/app.js?v=6.3"></script>
+  <script src="/lib/jspdf.umd.min.js?v=6.4"></script>
+  <script src="/lib/jspdf.plugin.autotable.min.js?v=6.4"></script>
+  <script src="/js/app.js?v=6.4"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pharmacare-shell-v6-3';
-const SHELL = ['/', '/index.html', '/css/app.css?v=6.3', '/js/app.js?v=6.3', '/js/offline-db.js?v=6.3', '/lib/jspdf.umd.min.js?v=6.3', '/lib/jspdf.plugin.autotable.min.js?v=6.3', '/manifest.webmanifest'];
+const CACHE_NAME = 'pharmacare-shell-v6-4';
+const SHELL = ['/', '/index.html', '/css/app.css?v=6.4', '/js/app.js?v=6.4', '/js/offline-db.js?v=6.4', '/lib/jspdf.umd.min.js?v=6.4', '/lib/jspdf.plugin.autotable.min.js?v=6.4', '/manifest.webmanifest'];
 
 /*
  PURPOSE:
@@ -32,9 +32,13 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api/')) return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-    const copy = response.clone();
-    caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-    return response;
-  })));
+  event.respondWith(
+    fetch(event.request)
+      .then(response => {
+        const copy=response.clone();
+        caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));
+        return response;
+      })
+      .catch(()=>caches.match(event.request))
+  );
 });
