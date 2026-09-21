@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.0</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.1</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -2556,25 +2556,37 @@ function showPosCustomerLookup(){
 
     results.innerHTML=`
       <div class="customer-lookup-count">${list.length} patient${list.length===1?'':'s'} found</div>
-      <div class="customer-lookup-table">
-        <div class="customer-lookup-head">
-          <span>Name</span><span>Patient ID</span><span>Phone</span><span>Email</span><span>Alerts</span><span>Action</span>
-        </div>
-        ${list.map(c=>`
-          <div class="customer-lookup-item customer-lookup-one-line ${Number(appState.selectedCustomerId)===c.id?'selected':''}">
-            <div class="customer-cell customer-name-cell"><b>${esc(c.name)}</b></div>
-            <div class="customer-cell">#${c.id}</div>
-            <div class="customer-cell">${esc(c.phone||'—')}</div>
-            <div class="customer-cell customer-email-cell">${esc(c.email||'—')}</div>
-            <div class="customer-cell customer-lookup-alerts">
-              ${c.allergies?`<span class="lookup-alert allergy">Allergy: ${esc(c.allergies)}</span>`:''}
-              ${c.medicalConditions?`<span class="lookup-alert condition">Condition: ${esc(c.medicalConditions)}</span>`:''}
-              ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts</span>':''}
-            </div>
-            <div class="customer-lookup-action">
-              <button type="button" class="btn-primary btn-xs" data-select-customer="${c.id}">Select</button>
-            </div>
-          </div>`).join('') || '<div class="empty">No matching patients.</div>'}
+      <div class="table-wrap customer-lookup-table-wrap" style="overflow-x:auto">
+        <table class="data-table customer-lookup-real-table" style="min-width:980px;width:100%;table-layout:fixed">
+          <colgroup>
+            <col style="width:18%">
+            <col style="width:10%">
+            <col style="width:14%">
+            <col style="width:22%">
+            <col style="width:27%">
+            <col style="width:9%">
+          </colgroup>
+          <thead>
+            <tr><th>Name</th><th>Patient ID</th><th>Phone</th><th>Email</th><th>Alerts</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            ${list.map(c=>`
+              <tr class="${Number(appState.selectedCustomerId)===c.id?'selected-row':''}">
+                <td><b>${esc(c.name)}</b></td>
+                <td>#${c.id}</td>
+                <td>${esc(c.phone||'—')}</td>
+                <td class="customer-email-cell">${esc(c.email||'—')}</td>
+                <td>
+                  <div class="customer-lookup-alerts">
+                    ${c.allergies?`<span class="lookup-alert allergy">Allergy: ${esc(c.allergies)}</span>`:''}
+                    ${c.medicalConditions?`<span class="lookup-alert condition">Condition: ${esc(c.medicalConditions)}</span>`:''}
+                    ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts</span>':''}
+                  </div>
+                </td>
+                <td><button type="button" class="btn-primary btn-xs" data-select-customer="${c.id}">Select</button></td>
+              </tr>`).join('') || `<tr><td colspan="6" class="empty">No matching patients.</td></tr>`}
+          </tbody>
+        </table>
       </div>`;
 
     results.querySelectorAll('[data-select-customer]').forEach(btn=>btn.onclick=()=>{
@@ -3767,4 +3779,116 @@ function reportsView(){
     <div class="report-card purple" data-report="profit"><span>◔ Profit & Loss</span><small>View report</small></div>
     <div class="report-card teal" data-report="customer"><span>👥 Customer Report</span><small>View report</small></div>
   </div>`;
+}
+
+
+/* ============================================================================
+ DIRECT PDF DOWNLOAD + TABLE CUSTOMER LOOKUP — v6.1
+ PURPOSE:
+ Guarantees Customer Lookup uses real table rows and Save PDF downloads a PDF file
+ directly without using the browser print dialog.
+ REFERENCE:
+ Local jsPDF assets are loaded from this app using versioned URLs to bypass stale
+ browser/service-worker cache entries.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Dynamically loads one local script exactly once.
+ REFERENCE:
+ Version query strings prevent stale cached assets from blocking a new release.
+*/
+function loadLocalScript(src,globalTest){
+  return new Promise((resolve,reject)=>{
+    if(globalTest())return resolve();
+
+    const existing=[...document.scripts].find(s=>s.src.includes(src.split('?')[0]));
+    if(existing){
+      existing.addEventListener('load',()=>globalTest()?resolve():reject(new Error('PDF script loaded but did not initialize.')),{once:true});
+      existing.addEventListener('error',()=>reject(new Error('Unable to load local PDF script.')),{once:true});
+      setTimeout(()=>{if(globalTest())resolve();},0);
+      return;
+    }
+
+    const script=document.createElement('script');
+    script.src=src;
+    script.async=false;
+    script.onload=()=>globalTest()?resolve():reject(new Error('PDF script loaded but did not initialize.'));
+    script.onerror=()=>reject(new Error('Unable to load local PDF script.'));
+    document.head.appendChild(script);
+  });
+}
+
+/*
+ PURPOSE:
+ Ensures the locally bundled jsPDF and AutoTable libraries are available before
+ generating any report PDF.
+ REFERENCE:
+ This does not require internet access.
+*/
+async function ensurePdfLibraries(){
+  await loadLocalScript('/lib/jspdf.umd.min.js?v=6.1',()=>Boolean(window.jspdf?.jsPDF));
+  await loadLocalScript('/lib/jspdf.plugin.autotable.min.js?v=6.1',()=>Boolean(window.jspdf?.jsPDF?.API?.autoTable));
+
+  if(!window.jspdf?.jsPDF)throw new Error('Local jsPDF library could not be loaded.');
+  if(!window.jspdf.jsPDF.API?.autoTable)throw new Error('Local PDF table library could not be loaded.');
+}
+
+/*
+ PURPOSE:
+ Downloads the report directly as a .pdf file.
+ REFERENCE:
+ No browser print dialog is used. If local PDF assets fail to load, the user sees
+ an error instead of being redirected into printing.
+*/
+async function saveReportPdf(report){
+  try{
+    await ensurePdfLibraries();
+
+    const JsPdf=window.jspdf.jsPDF;
+    const doc=new JsPdf({orientation:'landscape',unit:'mm',format:'a4'});
+    const headerBottom=appState.settings?.address?36:31;
+
+    doc.autoTable({
+      head:[report.headers],
+      body:report.rows.map(row=>row.map(v=>String(v??''))),
+      startY:headerBottom+4,
+      margin:{top:headerBottom+4,left:14,right:14,bottom:15},
+      styles:{fontSize:8,cellPadding:2.3,overflow:'linebreak'},
+      headStyles:{fillColor:[13,94,145],textColor:255,fontStyle:'bold'},
+      alternateRowStyles:{fillColor:[246,249,252]},
+      didDrawPage:()=>drawCompanyPdfHeader(doc,report.title)
+    });
+
+    let y=(doc.lastAutoTable?.finalY||headerBottom)+8;
+    if(report.summary?.length){
+      if(y>185){
+        doc.addPage();
+        drawCompanyPdfHeader(doc,report.title);
+        y=42;
+      }
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      report.summary.forEach(line=>{
+        doc.text(String(line),14,y);
+        y+=6;
+      });
+    }
+
+    const pageCount=doc.internal.getNumberOfPages();
+    for(let i=1;i<=pageCount;i++){
+      doc.setPage(i);
+      const width=doc.internal.pageSize.getWidth();
+      const height=doc.internal.pageSize.getHeight();
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(8);
+      doc.text(`Page ${i} of ${pageCount}`,width-14,height-7,{align:'right'});
+    }
+
+    doc.save(report.filename);
+    toast('PDF saved directly.','success');
+  }catch(error){
+    console.error(error);
+    toast(`PDF download failed: ${error.message}`,'error');
+  }
 }
