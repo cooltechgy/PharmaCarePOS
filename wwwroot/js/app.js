@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.8</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.9</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -3494,4 +3494,281 @@ function bindExpiry(){
   });
   const exportBtn=document.getElementById('exportExpiryBtn');
   if(exportBtn){exportBtn.textContent='Download PDF';exportBtn.addEventListener('click',downloadExpiryReportPdf);}
+}
+
+
+/* ============================================================================
+ REPORT VIEWER + RELIABLE PDF FALLBACK — v5.9
+ PURPOSE:
+ Opens every report on screen first, then lets the user save/print it as PDF.
+ REFERENCE:
+ Direct jsPDF download is used when the local library is available. If a stale
+ browser/service-worker cache prevents the library from loading, the report still
+ works through a print-friendly browser window where the user can choose Save to PDF.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Builds the common company header HTML used by the on-screen report and print/PDF fallback.
+*/
+function reportCompanyHeaderHtml(title){
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'PharmaCare POS';
+  const address=appState.settings?.address||'';
+  return `
+    <div class="report-company-header">
+      <div>
+        <h2>${esc(pharmacy)}</h2>
+        ${address?`<div>${esc(address)}</div>`:''}
+      </div>
+      <div class="report-company-meta">
+        <b>${esc(title)}</b>
+        <span>Generated: ${esc(new Date().toLocaleString())}</span>
+      </div>
+    </div>`;
+}
+
+/*
+ PURPOSE:
+ Opens a full on-screen report viewer with a table and Save PDF action.
+*/
+function showReportViewer(report){
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+    <div class="modal wide report-viewer-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">${esc(report.title)}</b>
+          <div class="muted">Preview report before saving or printing.</div>
+        </div>
+        <button class="close-btn" id="reportViewerClose">×</button>
+      </div>
+      <div class="modal-body">
+        ${reportCompanyHeaderHtml(report.title)}
+        <div class="report-viewer-table-wrap">
+          <table class="data-table report-viewer-table">
+            <thead><tr>${report.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${report.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(String(v??''))}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${report.headers.length}" class="empty">No report data.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+        ${report.summary?.length?`
+          <div class="report-viewer-summary">
+            ${report.summary.map(x=>`<div><b>${esc(x)}</b></div>`).join('')}
+          </div>`:''}
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="reportViewerClose2">Close</button>
+        <button class="btn-primary" id="reportViewerPrint">Print</button>
+        <button class="btn-success btn-lg" id="reportViewerPdf">Save PDF</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+
+  const close=()=>host.remove();
+  document.getElementById('reportViewerClose').onclick=close;
+  document.getElementById('reportViewerClose2').onclick=close;
+  document.getElementById('reportViewerPrint').onclick=()=>openPrintableReport(report,false);
+  document.getElementById('reportViewerPdf').onclick=()=>saveReportPdf(report);
+}
+
+/*
+ PURPOSE:
+ Saves a report directly with jsPDF when available, otherwise opens the browser
+ print dialog as a guaranteed fallback where "Save to PDF" can be selected.
+*/
+function saveReportPdf(report){
+  const JsPdf=window.jspdf?.jsPDF;
+  const hasAutoTable=Boolean(JsPdf?.API?.autoTable);
+
+  if(JsPdf && hasAutoTable){
+    try{
+      const doc=new JsPdf({orientation:'landscape',unit:'mm',format:'a4'});
+      const headerBottom=appState.settings?.address?36:31;
+
+      doc.autoTable({
+        head:[report.headers],
+        body:report.rows.map(row=>row.map(v=>String(v??''))),
+        startY:headerBottom+4,
+        margin:{top:headerBottom+4,left:14,right:14,bottom:15},
+        styles:{fontSize:8,cellPadding:2.3,overflow:'linebreak'},
+        headStyles:{fillColor:[13,94,145],textColor:255,fontStyle:'bold'},
+        alternateRowStyles:{fillColor:[246,249,252]},
+        didDrawPage:()=>drawCompanyPdfHeader(doc,report.title)
+      });
+
+      let y=(doc.lastAutoTable?.finalY||headerBottom)+8;
+      if(report.summary?.length){
+        if(y>185){doc.addPage();drawCompanyPdfHeader(doc,report.title);y=42;}
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(10);
+        report.summary.forEach(line=>{doc.text(String(line),14,y);y+=6;});
+      }
+
+      const pageCount=doc.internal.getNumberOfPages();
+      for(let i=1;i<=pageCount;i++){
+        doc.setPage(i);
+        const width=doc.internal.pageSize.getWidth();
+        const height=doc.internal.pageSize.getHeight();
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8);
+        doc.text(`Page ${i} of ${pageCount}`,width-14,height-7,{align:'right'});
+      }
+
+      doc.save(report.filename);
+      toast('PDF report saved.','success');
+      return;
+    }catch(e){
+      console.warn('Direct PDF generation failed, using browser PDF fallback.',e);
+    }
+  }
+
+  openPrintableReport(report,true);
+  toast('PDF download library was unavailable. Choose “Save to PDF” in the print window.','info');
+}
+
+/*
+ PURPOSE:
+ Opens a clean printable report. When used as PDF fallback the browser's native
+ print dialog can save the report as a PDF without any JavaScript PDF library.
+*/
+function openPrintableReport(report,saveAsPdfHint=false){
+  const w=window.open('','_blank','width=1100,height=760');
+  if(!w){
+    toast('Popup blocked. Allow popups to print or save the report.','warning');
+    return;
+  }
+
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'PharmaCare POS';
+  const address=appState.settings?.address||'';
+
+  const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(report.title)}</title>
+  <style>
+    @page{size:A4 landscape;margin:12mm}
+    body{font-family:Arial,sans-serif;color:#152b3b;margin:0}
+    .head{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #0d5e91;padding-bottom:10px;margin-bottom:14px}
+    .head h1{font-size:20px;margin:0 0 4px}.meta{text-align:right}.meta b,.meta span{display:block}.meta span{font-size:10px;color:#60778a;margin-top:4px}
+    table{width:100%;border-collapse:collapse;font-size:10px}th{background:#0d5e91;color:#fff;text-align:left}th,td{border:1px solid #d7e0e7;padding:5px;vertical-align:top}
+    tbody tr:nth-child(even){background:#f7fafc}.summary{margin-top:12px;font-size:11px}.hint{margin:0 0 10px;padding:7px 9px;background:#fff7d9;border:1px solid #ead28a;font-size:10px}
+    @media print{.hint{display:none}}
+  </style></head><body>
+  ${saveAsPdfHint?'<div class="hint"><b>Save as PDF:</b> In the print dialog choose “Save to PDF” or “Microsoft Print to PDF”.</div>':''}
+  <div class="head"><div><h1>${esc(pharmacy)}</h1>${address?`<div>${esc(address)}</div>`:''}</div><div class="meta"><b>${esc(report.title)}</b><span>Generated: ${esc(new Date().toLocaleString())}</span></div></div>
+  <table><thead><tr>${report.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>
+  ${report.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(String(v??''))}</td>`).join('')}</tr>`).join('')}
+  </tbody></table>
+  ${report.summary?.length?`<div class="summary">${report.summary.map(x=>`<div><b>${esc(x)}</b></div>`).join('')}</div>`:''}
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
+/* PURPOSE: Creates stock report data for both online preview and PDF. */
+function buildStockReportModel(){
+  const rows=appState.batches.map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    return [p?.name||'',b.batchNo,fmtDate(b.expiryDate),b.quantity,money(b.purchasePrice),money(b.sellingPrice),money(Number(b.quantity)*Number(b.purchasePrice))];
+  });
+  const value=appState.batches.reduce((sum,b)=>sum+Number(b.quantity)*Number(b.purchasePrice),0);
+  return {title:'Stock Report',filename:'stock-report.pdf',headers:['Product','Batch','Expiry','Qty','Cost','Selling','Stock Value'],rows,summary:[`Total Stock Value: ${money(value)}`]};
+}
+
+/* PURPOSE: Creates expiry report data for both online preview and PDF. */
+function buildExpiryReportModel(){
+  const rows=[...appState.batches].sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate)).map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    const left=daysLeft(b.expiryDate);
+    return [p?.name||'',b.batchNo,fmtDate(b.expiryDate),left,b.quantity,left<0?'Expired':left<=60?'Near Expiry':'Valid'];
+  });
+  return {title:'Expiry Report',filename:'expiry-report.pdf',headers:['Product','Batch','Expiry Date','Days Left','Qty','Status'],rows,summary:[]};
+}
+
+/* PURPOSE: Creates current purchase/receiving snapshot report data. */
+function buildPurchaseReportModel(){
+  const rows=appState.batches.map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    return [p?.name||'',b.batchNo,fmtDate(b.expiryDate),b.quantity,money(b.purchasePrice),money(Number(b.quantity)*Number(b.purchasePrice))];
+  });
+  const total=appState.batches.reduce((sum,b)=>sum+Number(b.quantity)*Number(b.purchasePrice),0);
+  return {title:'Purchase / Receiving Snapshot',filename:'purchase-report.pdf',headers:['Product','Batch','Expiry','Current Qty','Purchase Cost','Current Cost Value'],rows,summary:[`Current Purchase-Cost Value: ${money(total)}`]};
+}
+
+/* PURPOSE: Creates customer/patient report data. */
+function buildCustomerReportModel(){
+  const rows=appState.customers.map(c=>[c.id,c.name,c.phone||'',c.email||'',c.allergies||'None recorded',c.medicalConditions||'None recorded']);
+  return {title:'Customer / Patient Report',filename:'customer-report.pdf',headers:['Patient ID','Full Name','Phone','Email','Allergies','Medical Conditions'],rows,summary:[`Total Patients: ${appState.customers.length}`]};
+}
+
+/* PURPOSE: Creates sales report data from the server response. */
+function buildSalesReportModel(data){
+  const sales=data.sales||[];
+  const rows=sales.map(s=>[
+    s.invoiceNo,
+    new Date(s.createdUtc).toLocaleString(),
+    s.customerId||'Walk-in',
+    String(s.paymentMethod||'').startsWith('PENDING::')?'Pending':s.paymentMethod,
+    money(s.subtotal),
+    money(s.discount),
+    money(s.total)
+  ]);
+  const total=sales.reduce((sum,s)=>sum+Number(s.total||0),0);
+  return {title:'Sales Report',filename:'sales-report.pdf',headers:['Invoice','Date/Time','Customer ID','Payment','Subtotal','Discount','Total'],rows,summary:[`Invoices: ${sales.length}`,`Total Sales: ${money(total)}`]};
+}
+
+/* PURPOSE: Creates profit report data from the server response. */
+function buildProfitReportModel(data){
+  const grouped=new Map();
+  (data.lines||[]).forEach(line=>{
+    const p=appState.products.find(x=>x.id===line.productId);
+    const row=grouped.get(line.productId)||{product:p?.name||line.productName||`Product ${line.productId}`,qty:0,revenue:0,cost:0};
+    row.qty+=Number(line.quantity||0);
+    row.revenue+=Number(line.lineTotal||0);
+    row.cost+=Number(line.quantity||0)*Number(p?.purchasePrice||0);
+    grouped.set(line.productId,row);
+  });
+  const values=[...grouped.values()];
+  const rows=values.map(x=>[x.product,x.qty,money(x.revenue),money(x.cost),money(x.revenue-x.cost)]);
+  const revenue=values.reduce((s,x)=>s+x.revenue,0);
+  const cost=values.reduce((s,x)=>s+x.cost,0);
+  return {title:'Profit & Loss Report',filename:'profit-loss-report.pdf',headers:['Product','Qty Sold','Revenue','Estimated Cost','Gross Profit'],rows,summary:[`Revenue: ${money(revenue)}`,`Estimated Cost: ${money(cost)}`,`Gross Profit: ${money(revenue-cost)}`]};
+}
+
+/*
+ PURPOSE:
+ Opens reports on screen instead of downloading immediately.
+*/
+function bindReports(){
+  document.querySelectorAll('[data-report]').forEach(card=>card.addEventListener('click',async()=>{
+    const type=card.dataset.report;
+    try{
+      if(type==='stock')return showReportViewer(buildStockReportModel());
+      if(type==='expiry')return showReportViewer(buildExpiryReportModel());
+      if(type==='customer')return showReportViewer(buildCustomerReportModel());
+      if(type==='purchase')return showReportViewer(buildPurchaseReportModel());
+
+      if(!navigator.onLine)return toast('Sales and profit reports require server connection.','warning');
+      const data=await api(`/api/reports/sales?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`);
+      showReportViewer(type==='profit'?buildProfitReportModel(data):buildSalesReportModel(data));
+    }catch(e){
+      toast(e.message,'error');
+    }
+  }));
+}
+
+/* PURPOSE: Makes it clear that reports open first and PDF is optional. */
+function reportsView(){
+  return `<div class="page-header"><div><h1>Reports</h1><p>Open reports on screen, then save or print as PDF</p></div></div>
+  <div class="report-pdf-note">Click a report to <b>view it first</b>. From the viewer you can choose <b>Save PDF</b> or <b>Print</b>.</div>
+  <div class="report-cards">
+    <div class="report-card green" data-report="sales"><span>📈 Sales Report</span><small>View report</small></div>
+    <div class="report-card blue" data-report="purchase"><span>🛒 Purchase Report</span><small>View report</small></div>
+    <div class="report-card orange" data-report="stock"><span>📦 Stock Report</span><small>View report</small></div>
+    <div class="report-card red" data-report="expiry"><span>📅 Expiry Report</span><small>View report</small></div>
+    <div class="report-card purple" data-report="profit"><span>◔ Profit & Loss</span><small>View report</small></div>
+    <div class="report-card teal" data-report="customer"><span>👥 Customer Report</span><small>View report</small></div>
+  </div>`;
 }
