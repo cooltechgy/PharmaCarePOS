@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.4</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.5</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -4207,6 +4207,402 @@ function bindPos(){
     if(action==='price'){search?.focus();search?.select();return;}
     if(action==='hold'){holdCurrentSale();return;}
     if(action==='customer'){showPosCustomerLookup();return;}
+    if(action==='cashier'){appState.view='cashier';render();return;}
+  });
+
+  document.getElementById('viewAllSalesBtn')?.addEventListener('click',()=>{appState.view='reports';render();});
+
+  filterPosProducts();
+  loadPosRecentSales();
+  setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ PAY-HERE METHOD POPUP + HELD SALE RECALL — v6.5
+ PURPOSE:
+ Removes the always-visible payment-method buttons from POS. Pay Here now asks for
+ Cash/Card/UPI/Split in a modal. Held orders can be recalled back into the cart.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Shows payment choices only when Pay Here is selected.
+ REFERENCE:
+ Keeps the main POS cleaner and reduces accidental payment-method selection.
+*/
+function showPayHereMethodModal(){
+  if(!appState.cart.length){
+    toast('Cart is empty.','warning');
+    return;
+  }
+
+  const total=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+
+  host.innerHTML=`
+    <div class="modal pay-method-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Select Payment Method</b>
+          <div class="muted">${patient?esc(patient.name):'Walk-in Customer'} • Total ${money(total)}</div>
+        </div>
+        <button class="close-btn" id="payMethodClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="pay-method-total">
+          <span>Amount Due</span>
+          <strong>${money(total)}</strong>
+        </div>
+        <div class="pay-method-grid">
+          <button type="button" data-pay-method="Cash"><span>💵</span><b>Cash</b><small>Cash payment</small></button>
+          <button type="button" data-pay-method="Card"><span>💳</span><b>Card</b><small>Debit / credit card</small></button>
+          <button type="button" data-pay-method="UPI"><span>📱</span><b>UPI</b><small>Digital payment</small></button>
+          <button type="button" data-pay-method="Split"><span>➗</span><b>Split</b><small>Multiple methods</small></button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="payMethodCancel">Cancel</button>
+      </div>
+    </div>`;
+  document.body.appendChild(host);
+
+  const close=()=>host.remove();
+  document.getElementById('payMethodClose').onclick=close;
+  document.getElementById('payMethodCancel').onclick=close;
+
+  host.querySelectorAll('[data-pay-method]').forEach(btn=>btn.onclick=async()=>{
+    appState.paymentMethod=btn.dataset.payMethod;
+    close();
+    await completeSale('here');
+  });
+}
+
+/*
+ PURPOSE:
+ Opens the locally held orders list and lets the cashier restore one order.
+ REFERENCE:
+ Held orders are stored in localStorage and remain available after refresh.
+*/
+function showHeldOrdersModal(){
+  const held=Array.isArray(appState.heldSales)?appState.heldSales:[];
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+
+  host.innerHTML=`
+    <div class="modal wide held-orders-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Recall Held Order</b>
+          <div class="muted">${held.length} held order${held.length===1?'':'s'} on this station.</div>
+        </div>
+        <button class="close-btn" id="heldOrdersClose">×</button>
+      </div>
+      <div class="modal-body">
+        ${held.length?`
+          <div class="table-wrap">
+            <table class="data-table held-orders-table">
+              <thead><tr><th>Held Time</th><th>Customer</th><th>Items</th><th>Total</th><th>Action</th></tr></thead>
+              <tbody>
+                ${held.map((h,i)=>{
+                  const customer=appState.customers.find(c=>c.id===Number(h.customerId));
+                  const total=(h.cart||[]).reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+                  const qty=(h.cart||[]).reduce((s,l)=>s+Number(l.quantity||0),0);
+                  return `<tr>
+                    <td>${new Date(h.id).toLocaleString()}</td>
+                    <td><b>${esc(customer?.name||'Walk-in Customer')}</b></td>
+                    <td>${qty}</td>
+                    <td><b>${money(total)}</b></td>
+                    <td class="nowrap">
+                      <button class="btn-primary btn-xs" data-recall-held="${i}">Recall</button>
+                      <button class="btn-danger btn-xs" data-delete-held="${i}">Delete</button>
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`
+          : '<div class="empty">No held orders on this station.</div>'}
+      </div>
+      <div class="modal-foot">
+        <button class="btn-light" id="heldOrdersCancel">Close</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(host);
+  const close=()=>host.remove();
+  document.getElementById('heldOrdersClose').onclick=close;
+  document.getElementById('heldOrdersCancel').onclick=close;
+
+  host.querySelectorAll('[data-recall-held]').forEach(btn=>btn.onclick=()=>{
+    const index=Number(btn.dataset.recallHeld);
+    const order=appState.heldSales[index];
+    if(!order)return;
+
+    if(appState.cart.length){
+      toast('Clear or hold the current cart before recalling another order.','warning');
+      return;
+    }
+
+    appState.cart=(order.cart||[]).map(x=>({...x}));
+    appState.paymentMethod=order.paymentMethod||'Cash';
+    appState.selectedCustomerId=order.customerId||null;
+    appState.heldSales.splice(index,1);
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    close();
+    render();
+    toast('Held order recalled.','success');
+  });
+
+  host.querySelectorAll('[data-delete-held]').forEach(btn=>btn.onclick=()=>{
+    const index=Number(btn.dataset.deleteHeld);
+    appState.heldSales.splice(index,1);
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    close();
+    showHeldOrdersModal();
+  });
+}
+
+/*
+ PURPOSE:
+ v6.5 POS layout removes payment-method buttons and adds Recall Held Order.
+*/
+function posView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const checkout=getCheckoutSettings();
+  const categories=posFilterValues('category');
+  const manufacturers=posFilterValues('manufacturer');
+  const heldCount=Array.isArray(appState.heldSales)?appState.heldSales.length:0;
+
+  return `
+  <div class="pos-workspace-v62">
+    <div class="pos-v62-titlebar">
+      <div class="pos-v62-title">
+        <span class="pos-v62-title-icon">🛒</span>
+        <div><h1>POS Sales</h1><p>Scan or search products, add to cart and complete sale.</p></div>
+      </div>
+      <div class="pos-v62-status">
+        <span class="sync-pill">${navigator.onLine?'● Online':'● Offline'}</span>
+        <span>${new Date().toLocaleDateString()} &nbsp; ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+      </div>
+    </div>
+
+    ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode is active. Sales are stored locally and synchronize when the connection returns.</div>'}
+
+    <section class="pos-v62-customer-strip">
+      <div class="pos-v62-customer-icon">👤</div>
+      <b>Customer / Patient</b>
+      <div class="pos-v62-customer-data">
+        <strong>${patient?esc(patient.name):'Walk-in Customer'}</strong>
+        ${patient?`<span>(ID: #${patient.id})</span>`:''}
+        ${patient?.phone?`<span>☎ ${esc(patient.phone)}</span>`:''}
+        ${patient?.email?`<span>✉ ${esc(patient.email)}</span>`:''}
+        ${patient?.allergies?`<span class="pos-v62-alert">Allergy: ${esc(patient.allergies)}</span>`:'<span class="pos-v62-ok">No alerts</span>'}
+      </div>
+      <div class="pos-v62-customer-actions">
+        <button class="btn-primary" id="customerLookupBtn">⌕ Lookup</button>
+        <button class="btn-light" id="quickAddPatientBtn">＋ New Patient</button>
+        <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>👥 Walk-in</button>
+      </div>
+    </section>
+
+    <div class="pos-v62-main-grid">
+      <section class="panel pos-v62-products">
+        <div class="panel-head"><span>💊 Product Search</span><span class="badge blue">Barcode Ready</span></div>
+        <div class="panel-body">
+          <div class="pos-v62-search-row">
+            <div class="pos-v62-search-box"><span>⌕</span><input id="posSearch" placeholder="Type product name, barcode, or RxNorm ID..." autocomplete="off"></div>
+            <button class="btn-primary" id="posSearchBtn">Search</button>
+          </div>
+          <div class="pos-v62-filter-row">
+            <select id="posCategoryFilter"><option value="">All Categories</option>${categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+            <select id="posManufacturerFilter"><option value="">All Manufacturers</option>${manufacturers.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+            <select id="posStockFilter"><option value="in">In Stock Only</option><option value="all">All Stock</option><option value="low">Low Stock ≤ 10</option></select>
+            <button class="btn-light" id="clearProductFiltersBtn">Clear</button>
+          </div>
+          <div class="pos-v62-product-count" id="posProductCount">Showing ${appState.products.length} products</div>
+          <div class="table-wrap pos-v62-product-table-wrap">
+            <table class="data-table pos-v62-product-table">
+              <thead><tr><th>Product</th><th>Strength</th><th>Form</th><th>Stock</th><th>Price</th><th>Action</th></tr></thead>
+              <tbody>${appState.products.slice(0,1000).map(p=>{
+                const stock=stockForProduct(p.id);
+                return `<tr class="pos-product-row" data-product-id="${p.id}" data-category="${esc(p.category||'')}" data-manufacturer="${esc(p.manufacturer||'')}" data-stock="${stock}">
+                  <td><b>${esc(p.name)}</b><small>${esc(p.genericName||'')}</small></td>
+                  <td>${esc(p.strength||'—')}</td><td>${esc(p.dosageForm||'—')}</td>
+                  <td><b class="${Number(stock)<=10?'danger-text':'stock-good'}">${stock}</b></td>
+                  <td>${money(p.sellingPrice)}</td>
+                  <td><button class="btn-primary btn-xs" data-add-product="${p.id}">🛒 Add</button></td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel pos-v62-cart">
+        <div class="panel-head">
+          <span>🛒 Cart (${appState.cart.length} item${appState.cart.length===1?'':'s'})</span>
+          <button class="btn-danger btn-xs" id="clearCartBtn">Clear Cart</button>
+        </div>
+        <div class="panel-body pos-v62-cart-body">
+          <div class="table-wrap pos-v62-cart-table-wrap">
+            <table class="data-table pos-v62-cart-table">
+              <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th><th></th></tr></thead>
+              <tbody>
+                ${appState.cart.map((l,i)=>`<tr>
+                  <td><b>${esc(l.productName)}</b><small>Batch ${esc(l.batchNo)} • Exp ${fmtDate(l.expiryDate)}</small>${l.directions?`<small class="directions-line">${esc(l.directions)}</small>`:''}</td>
+                  <td>${money(l.unitPrice)}</td>
+                  <td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}"></td>
+                  <td><b>${money(Number(l.quantity)*Number(l.unitPrice))}</b></td>
+                  <td class="nowrap">${l.directions?`<button class="btn-light btn-xs" data-print-directions="${i}">🖨</button>`:''}<button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td>
+                </tr>`).join('')||'<tr><td colspan="5" class="empty">Cart is empty. Scan or add a product.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pos-v62-totals">
+            <div><span>Subtotal</span><b>${money(subtotal)}</b></div>
+            <div><span>Discount</span><b>${money(0)}</b></div>
+            <div class="pos-v62-total"><span>Total</span><strong>${money(subtotal)}</strong></div>
+          </div>
+
+          <div class="pos-v62-checkout-grid">
+            <button class="pos-v62-pay-here" id="payHereBtn" ${appState.cart.length?'':'disabled'}>
+              <b>💳 Pay Here</b><span>Choose payment method next</span>
+            </button>
+            <button class="pos-v62-send-cashier" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}>
+              <b>👥 Send to Cashier</b><span>Order complete • Payment Pending</span>
+            </button>
+          </div>
+
+          <div class="pos-v62-secondary-actions">
+            <button class="btn-light" id="holdSaleBtn">Ⅱ Hold Sale</button>
+            <button class="btn-light" id="recallHeldBtn">↩ Recall Held${heldCount?` (${heldCount})`:''}</button>
+            <button class="btn-light" id="printBtn">🖨 Print</button>
+            <span>Default: <b>${checkout.defaultRoute==='cashier'?'Send to Cashier':'Pay Here'}</b></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="pos-v62-bottom-grid">
+      <section class="panel">
+        <div class="panel-head"><span>◷ Recent Sales</span><button class="btn-light btn-xs" id="viewAllSalesBtn">View Reports</button></div>
+        <div class="panel-body" id="posRecentSales"><div class="empty">${navigator.onLine?'Loading recent sales...':'Recent server sales unavailable offline.'}</div></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><span>⚡ Quick Actions</span></div>
+        <div class="panel-body">
+          <div class="pos-v62-quick-actions">
+            <button data-pos-quick="stock"><span>▣</span><b>Stock Check</b></button>
+            <button data-pos-quick="price"><span>🏷</span><b>Price Check</b></button>
+            <button data-pos-quick="hold"><span>Ⅱ</span><b>Hold Sale</b></button>
+            <button data-pos-quick="recall"><span>↩</span><b>Recall Held</b></button>
+            <button data-pos-quick="cashier"><span>💵</span><b>Cashier</b></button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ v6.5 bindings: Pay Here opens payment popup and held orders can be recalled.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  search?.addEventListener('input',filterPosProducts);
+  document.getElementById('posCategoryFilter')?.addEventListener('change',filterPosProducts);
+  document.getElementById('posManufacturerFilter')?.addEventListener('change',filterPosProducts);
+  document.getElementById('posStockFilter')?.addEventListener('change',filterPosProducts);
+
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const value=String(search.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+      filterPosProducts();
+    }else filterPosProducts();
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+    }
+    filterPosProducts();
+  });
+
+  document.getElementById('clearProductFiltersBtn')?.addEventListener('click',()=>{
+    if(search)search.value='';
+    const category=document.getElementById('posCategoryFilter'); if(category)category.value='';
+    const manufacturer=document.getElementById('posManufacturerFilter'); if(manufacturer)manufacturer.value='';
+    const stock=document.getElementById('posStockFilter'); if(stock)stock.value='in';
+    filterPosProducts();
+    search?.focus();
+  });
+
+  document.querySelectorAll('[data-add-product]').forEach(btn=>btn.onclick=e=>{
+    e.stopPropagation();
+    appState.selectedProductId=Number(btn.dataset.addProduct);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+  document.querySelectorAll('.pos-product-row').forEach(row=>row.ondblclick=()=>{
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{appState.selectedCustomerId=null;render();toast('Walk-in Customer selected.');});
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.onclick=()=>printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)]));
+
+  document.getElementById('payHereBtn')?.addEventListener('click',showPayHereMethodModal);
+  document.getElementById('sendCashierBtn')?.addEventListener('click',()=>completeSale('cashier'));
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  const holdCurrentSale=()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({
+      id:Date.now(),
+      cart:appState.cart.map(x=>({...x})),
+      paymentMethod:appState.paymentMethod,
+      customerId:appState.selectedCustomerId
+    });
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    appState.selectedCustomerId=null;
+    render();
+    toast('Sale held locally.');
+  };
+
+  document.getElementById('holdSaleBtn')?.addEventListener('click',holdCurrentSale);
+  document.getElementById('recallHeldBtn')?.addEventListener('click',showHeldOrdersModal);
+
+  document.querySelectorAll('[data-pos-quick]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.posQuick;
+    if(action==='stock'){appState.view='stock';render();return;}
+    if(action==='price'){search?.focus();search?.select();return;}
+    if(action==='hold'){holdCurrentSale();return;}
+    if(action==='recall'){showHeldOrdersModal();return;}
     if(action==='cashier'){appState.view='cashier';render();return;}
   });
 
