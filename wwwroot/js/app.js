@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.5</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.6</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -3054,4 +3054,435 @@ async function loadCashierPending(){
 function bindCashier(){
   document.getElementById('refreshCashierBtn')?.addEventListener('click',loadCashierPending);
   loadCashierPending();
+}
+
+
+/* ============================================================================
+ PAYMENT CONFIRMATION UI + PDF REPORTS — v5.6
+ PURPOSE:
+ Replaces browser confirm() prompts with a branded in-app payment modal and makes
+ every report tile download a PDF with the pharmacy/company header.
+ REFERENCE:
+ jsPDF + AutoTable are loaded in index.html for client-side PDF generation.
+============================================================================ */
+
+/*
+ PURPOSE:
+ Shows a styled cashier payment confirmation modal instead of the browser confirm().
+ REFERENCE:
+ Returns a Promise<boolean> so the cashier workflow stays easy to read.
+*/
+function showPaymentConfirmationModal(row,paymentMethod){
+  return new Promise(resolve=>{
+    const host=document.createElement('div');
+    host.className='modal-backdrop';
+    host.innerHTML=`
+      <div class="modal payment-confirm-modal">
+        <div class="modal-head">
+          <div>
+            <b class="batch-modal-title">Confirm Payment</b>
+            <div class="muted">Verify the payment before completing this cashier order.</div>
+          </div>
+          <button class="close-btn" id="paymentConfirmClose">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="payment-confirm-amount">
+            <span>Amount Due</span>
+            <strong>${money(row.total)}</strong>
+          </div>
+          <div class="payment-confirm-grid">
+            <div><span>Invoice</span><b>${esc(row.invoiceNo)}</b></div>
+            <div><span>Customer</span><b>${esc(row.customerName||'Walk-in Customer')}</b></div>
+            <div><span>Payment Method</span><b>${esc(paymentMethod)}</b></div>
+            <div><span>Status</span><b class="danger-text">Pending → Complete</b></div>
+          </div>
+          <div class="section-note"><b>Confirm only after payment has been received.</b></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-light" id="paymentConfirmCancel">Cancel</button>
+          <button class="btn-success btn-lg" id="paymentConfirmOk">✓ Payment Received</button>
+        </div>
+      </div>`;
+    document.body.appendChild(host);
+
+    let finished=false;
+    const done=value=>{
+      if(finished)return;
+      finished=true;
+      host.remove();
+      resolve(value);
+    };
+
+    document.getElementById('paymentConfirmClose').onclick=()=>done(false);
+    document.getElementById('paymentConfirmCancel').onclick=()=>done(false);
+    document.getElementById('paymentConfirmOk').onclick=()=>done(true);
+  });
+}
+
+/*
+ PURPOSE:
+ Loads and renders pending cashier orders using the branded confirmation modal.
+ REFERENCE:
+ Replaces the browser-native confirm dialog that looked disconnected from the POS.
+*/
+async function loadCashierPending(){
+  const body=document.getElementById('cashierPendingBody');
+  if(!body)return;
+
+  if(!navigator.onLine){
+    body.innerHTML='<div class="empty">Cashier requires a server connection. Offline POS orders will appear here after they synchronize.</div>';
+    return;
+  }
+
+  try{
+    const rows=await api(`/api/cashier/pending?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`);
+    const total=rows.reduce((sum,x)=>sum+Number(x.total||0),0);
+    const count=document.getElementById('cashierPendingCount');
+    const value=document.getElementById('cashierPendingValue');
+    if(count)count.textContent=String(rows.length);
+    if(value)value.textContent=money(total);
+
+    body.innerHTML=rows.length?`
+      <div class="table-wrap">
+        <table class="data-table cashier-table">
+          <thead><tr><th>Invoice</th><th>Time</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>
+            ${rows.map(row=>`
+              <tr>
+                <td><b>${esc(row.invoiceNo)}</b></td>
+                <td>${new Date(row.createdUtc).toLocaleString()}</td>
+                <td><b>${esc(row.customerName||'Walk-in Customer')}</b><br><small class="muted">${esc(row.customerPhone||'')}</small></td>
+                <td><b class="cashier-amount">${money(row.total)}</b></td>
+                <td>
+                  <select class="cashier-payment-method" data-cashier-method="${row.id}">
+                    ${['Cash','Card','UPI','Split'].map(x=>`<option ${String(row.suggestedPaymentMethod||'').toLowerCase()===x.toLowerCase()?'selected':''}>${x}</option>`).join('')}
+                  </select>
+                </td>
+                <td><span class="badge orange">Pending</span></td>
+                <td><button class="btn-success" data-complete-payment="${row.id}">✓ Payment Complete</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`
+      : '<div class="empty cashier-empty">✓ No pending payments. Cashier queue is clear.</div>';
+
+    body.querySelectorAll('[data-complete-payment]').forEach(btn=>btn.onclick=async()=>{
+      const saleId=Number(btn.dataset.completePayment);
+      const row=rows.find(x=>x.id===saleId);
+      const select=body.querySelector(`[data-cashier-method="${saleId}"]`);
+      const paymentMethod=select?.value||'Cash';
+
+      const confirmed=await showPaymentConfirmationModal(row,paymentMethod);
+      if(!confirmed)return;
+
+      btn.disabled=true;
+      btn.textContent='Completing...';
+      try{
+        await api(`/api/cashier/${saleId}/complete`,{
+          method:'PUT',
+          body:JSON.stringify({
+            tenantId:appState.session.tenantId,
+            branchId:appState.session.branchId,
+            paymentMethod
+          })
+        });
+        toast('Payment marked complete.','success');
+        await loadCashierPending();
+      }catch(e){
+        btn.disabled=false;
+        btn.textContent='✓ Payment Complete';
+        toast(e.message,'error');
+      }
+    });
+  }catch(e){
+    body.innerHTML=`<div class="empty">Unable to load cashier queue: ${esc(e.message)}</div>`;
+  }
+}
+
+/*
+ PURPOSE:
+ Returns the jsPDF constructor or throws a user-friendly message if PDF scripts
+ are not available.
+ REFERENCE:
+ Report PDFs require the jsPDF browser library loaded from index.html.
+*/
+function getPdfConstructor(){
+  const ctor=window.jspdf?.jsPDF;
+  if(!ctor)throw new Error('PDF library is not loaded. Check internet access and refresh the page.');
+  return ctor;
+}
+
+/*
+ PURPOSE:
+ Adds the company/pharmacy header to each PDF report page.
+ REFERENCE:
+ Uses Settings > General pharmacy name and address so all reports share branding.
+*/
+function drawCompanyPdfHeader(doc,reportTitle){
+  const pharmacy=appState.settings?.pharmacyName||appState.session?.tenantName||'PharmaCare POS';
+  const address=appState.settings?.address||'';
+  const pageWidth=doc.internal.pageSize.getWidth();
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(16);
+  doc.text(String(pharmacy),14,15);
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  if(address)doc.text(String(address),14,21);
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.text(String(reportTitle),14,address?30:25);
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.text(`Generated: ${new Date().toLocaleString()}`,pageWidth-14,address?30:25,{align:'right'});
+  doc.setDrawColor(190);
+  doc.line(14,address?34:29,pageWidth-14,address?34:29);
+}
+
+/*
+ PURPOSE:
+ Downloads a branded tabular PDF report with a repeating company header.
+ REFERENCE:
+ AutoTable repeats table headings and calls didDrawPage for each report page.
+*/
+function downloadCompanyPdf(reportTitle,filename,headers,rows,summaryLines=[]){
+  const JsPdf=getPdfConstructor();
+  const doc=new JsPdf({orientation:'landscape',unit:'mm',format:'a4'});
+  const headerBottom=appState.settings?.address?36:31;
+
+  doc.autoTable({
+    head:[headers],
+    body:rows.map(row=>row.map(value=>String(value??''))),
+    startY:headerBottom+4,
+    margin:{top:headerBottom+4,left:14,right:14,bottom:15},
+    styles:{fontSize:8,cellPadding:2.3,overflow:'linebreak'},
+    headStyles:{fillColor:[13,94,145],textColor:255,fontStyle:'bold'},
+    alternateRowStyles:{fillColor:[246,249,252]},
+    didDrawPage:()=>drawCompanyPdfHeader(doc,reportTitle)
+  });
+
+  let y=(doc.lastAutoTable?.finalY||headerBottom)+8;
+  if(summaryLines.length){
+    if(y>185){doc.addPage();drawCompanyPdfHeader(doc,reportTitle);y=42;}
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(10);
+    summaryLines.forEach(line=>{
+      doc.text(String(line),14,y);
+      y+=6;
+    });
+  }
+
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    const width=doc.internal.pageSize.getWidth();
+    const height=doc.internal.pageSize.getHeight();
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    doc.text(`Page ${i} of ${pageCount}`,width-14,height-7,{align:'right'});
+  }
+
+  doc.save(filename);
+}
+
+/* PURPOSE: Builds and downloads the current stock PDF report. */
+function downloadStockReportPdf(){
+  const rows=appState.batches.map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    return [
+      p?.name||'',
+      b.batchNo,
+      fmtDate(b.expiryDate),
+      b.quantity,
+      money(b.purchasePrice),
+      money(b.sellingPrice),
+      money(Number(b.quantity)*Number(b.purchasePrice))
+    ];
+  });
+  const value=appState.batches.reduce((sum,b)=>sum+Number(b.quantity)*Number(b.purchasePrice),0);
+  downloadCompanyPdf('Stock Report','stock-report.pdf',
+    ['Product','Batch','Expiry','Qty','Cost','Selling','Stock Value'],
+    rows,[`Total Stock Value: ${money(value)}`]);
+}
+
+/* PURPOSE: Builds and downloads the expiry PDF report. */
+function downloadExpiryReportPdf(){
+  const sorted=[...appState.batches].sort((a,b)=>new Date(a.expiryDate)-new Date(b.expiryDate));
+  const rows=sorted.map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    const left=daysLeft(b.expiryDate);
+    return [p?.name||'',b.batchNo,fmtDate(b.expiryDate),left,b.quantity,left<0?'Expired':left<=60?'Near Expiry':'Valid'];
+  });
+  downloadCompanyPdf('Expiry Report','expiry-report.pdf',
+    ['Product','Batch','Expiry Date','Days Left','Qty','Status'],rows);
+}
+
+/*
+ PURPOSE:
+ Creates a purchase/receiving valuation PDF from the synchronized batch records.
+ REFERENCE:
+ Current data model does not store historical purchase headers, so this report is
+ explicitly a current receiving/stock-cost snapshot rather than invented history.
+*/
+function downloadPurchaseReportPdf(){
+  const rows=appState.batches.map(b=>{
+    const p=appState.products.find(x=>x.id===b.productId);
+    return [p?.name||'',b.batchNo,fmtDate(b.expiryDate),b.quantity,money(b.purchasePrice),money(Number(b.quantity)*Number(b.purchasePrice))];
+  });
+  const total=appState.batches.reduce((sum,b)=>sum+Number(b.quantity)*Number(b.purchasePrice),0);
+  downloadCompanyPdf('Purchase / Receiving Snapshot','purchase-report.pdf',
+    ['Product','Batch','Expiry','Current Qty','Purchase Cost','Current Cost Value'],
+    rows,[`Current Purchase-Cost Value: ${money(total)}`]);
+}
+
+/* PURPOSE: Creates and downloads the patient/customer PDF report. */
+function downloadCustomerReportPdf(){
+  const rows=appState.customers.map(c=>[
+    c.id,
+    c.name,
+    c.phone||'',
+    c.email||'',
+    c.allergies||'None recorded',
+    c.medicalConditions||'None recorded'
+  ]);
+  downloadCompanyPdf('Customer / Patient Report','customer-report.pdf',
+    ['Patient ID','Full Name','Phone','Email','Allergies','Medical Conditions'],rows,
+    [`Total Patients: ${appState.customers.length}`]);
+}
+
+/* PURPOSE: Creates a sales PDF using server invoice data. */
+function downloadSalesReportPdf(data){
+  const sales=data.sales||[];
+  const rows=sales.map(s=>[
+    s.invoiceNo,
+    new Date(s.createdUtc).toLocaleString(),
+    s.customerId||'Walk-in',
+    String(s.paymentMethod||'').startsWith('PENDING::')?'Pending':s.paymentMethod,
+    money(s.subtotal),
+    money(s.discount),
+    money(s.total)
+  ]);
+  const total=sales.reduce((sum,s)=>sum+Number(s.total||0),0);
+  downloadCompanyPdf('Sales Report','sales-report.pdf',
+    ['Invoice','Date/Time','Customer ID','Payment','Subtotal','Discount','Total'],
+    rows,[`Invoices: ${sales.length}`,`Total Sales: ${money(total)}`]);
+}
+
+/* PURPOSE: Creates a product-level profit PDF using recorded sale lines. */
+function downloadProfitReportPdf(data){
+  const lines=data.lines||[];
+  const grouped=new Map();
+
+  lines.forEach(line=>{
+    const p=appState.products.find(x=>x.id===line.productId);
+    const key=line.productId;
+    const row=grouped.get(key)||{
+      product:p?.name||line.productName||`Product ${key}`,
+      qty:0,revenue:0,cost:0
+    };
+    row.qty+=Number(line.quantity||0);
+    row.revenue+=Number(line.lineTotal||0);
+    row.cost+=Number(line.quantity||0)*Number(p?.purchasePrice||0);
+    grouped.set(key,row);
+  });
+
+  const values=[...grouped.values()];
+  const rows=values.map(x=>[
+    x.product,x.qty,money(x.revenue),money(x.cost),money(x.revenue-x.cost)
+  ]);
+  const revenue=values.reduce((s,x)=>s+x.revenue,0);
+  const cost=values.reduce((s,x)=>s+x.cost,0);
+
+  downloadCompanyPdf('Profit & Loss Report','profit-loss-report.pdf',
+    ['Product','Qty Sold','Revenue','Estimated Cost','Gross Profit'],
+    rows,[`Revenue: ${money(revenue)}`,`Estimated Cost: ${money(cost)}`,`Gross Profit: ${money(revenue-cost)}`]);
+}
+
+/*
+ PURPOSE:
+ Makes every Reports tile download a PDF with the company header.
+ REFERENCE:
+ Sales/profit use central invoice data; stock/expiry/customer and receiving snapshot
+ use the synchronized local catalogue.
+*/
+function bindReports(){
+  document.querySelectorAll('[data-report]').forEach(card=>card.addEventListener('click',async()=>{
+    const type=card.dataset.report;
+    try{
+      if(type==='stock')return downloadStockReportPdf();
+      if(type==='expiry')return downloadExpiryReportPdf();
+      if(type==='customer')return downloadCustomerReportPdf();
+      if(type==='purchase')return downloadPurchaseReportPdf();
+
+      if(!navigator.onLine)return toast('Sales and profit PDF reports require server connection.','warning');
+      const data=await api(`/api/reports/sales?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`);
+      if(type==='profit')downloadProfitReportPdf(data);
+      else downloadSalesReportPdf(data);
+      toast('PDF report downloaded.','success');
+    }catch(e){
+      toast(e.message,'error');
+    }
+  }));
+}
+
+/*
+ PURPOSE:
+ Updates report cards to make the PDF-download behavior obvious.
+ REFERENCE:
+ Each report card now performs one direct PDF download.
+*/
+function reportsView(){
+  return `<div class="page-header"><div><h1>Reports</h1><p>Download branded PDF reports with company header</p></div></div>
+  <div class="report-pdf-note">Every report downloads as PDF using <b>${esc(appState.settings?.pharmacyName||appState.session?.tenantName||'Pharmacy')}</b> and the saved company address.</div>
+  <div class="report-cards">
+    <div class="report-card green" data-report="sales"><span>📈 Sales Report</span><small>Download PDF</small></div>
+    <div class="report-card blue" data-report="purchase"><span>🛒 Purchase Report</span><small>Download PDF receiving snapshot</small></div>
+    <div class="report-card orange" data-report="stock"><span>📦 Stock Report</span><small>Download PDF</small></div>
+    <div class="report-card red" data-report="expiry"><span>📅 Expiry Report</span><small>Download PDF</small></div>
+    <div class="report-card purple" data-report="profit"><span>◔ Profit & Loss</span><small>Download PDF</small></div>
+    <div class="report-card teal" data-report="customer"><span>👥 Customer Report</span><small>Download PDF</small></div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ Keeps Stock screen controls working while changing Export to branded PDF.
+*/
+function bindStock(){
+  document.getElementById('syncNowBtn')?.addEventListener('click',async()=>{await syncPendingSales();await refreshSnapshot();render();toast('Sync complete.');});
+  const filter=()=>{
+    const q=(document.getElementById('stockSearch')?.value||'').toLowerCase();
+    const status=document.getElementById('stockStatus')?.value||'all';
+    document.querySelectorAll('[data-stock-view]').forEach(btn=>{
+      const row=btn.closest('tr');
+      const batch=appState.batches.find(x=>x.id===Number(btn.dataset.stockView));
+      const product=appState.products.find(x=>x.id===batch?.productId);
+      const dl=batch?daysLeft(batch.expiryDate):9999;
+      const matchText=!q||`${product?.name} ${batch?.batchNo}`.toLowerCase().includes(q);
+      const matchStatus=status==='all'||(status==='low'&&Number(batch?.quantity)<=10)||(status==='expiry'&&dl>=0&&dl<=60)||(status==='expired'&&dl<0);
+      row.style.display=matchText&&matchStatus?'':'none';
+    });
+  };
+  document.getElementById('stockSearch')?.addEventListener('input',filter);
+  document.getElementById('stockStatus')?.addEventListener('change',filter);
+  const exportBtn=document.getElementById('exportStockBtn');
+  if(exportBtn){exportBtn.textContent='Download PDF';exportBtn.addEventListener('click',downloadStockReportPdf);}
+  document.querySelectorAll('[data-stock-view]').forEach(btn=>btn.addEventListener('click',()=>showStockModal(Number(btn.dataset.stockView))));
+}
+
+/* PURPOSE: Keeps Expiry filtering working while changing Export to branded PDF. */
+function bindExpiry(){
+  document.getElementById('expiryFilter')?.addEventListener('change',e=>{
+    const max=e.target.value==='all'?Infinity:Number(e.target.value);
+    document.querySelectorAll('.data-table tbody tr').forEach(row=>{
+      const cells=row.children;
+      const dl=Number(cells[3]?.textContent);
+      row.style.display=dl<=max?'':'none';
+    });
+  });
+  const exportBtn=document.getElementById('exportExpiryBtn');
+  if(exportBtn){exportBtn.textContent='Download PDF';exportBtn.addEventListener('click',downloadExpiryReportPdf);}
 }
