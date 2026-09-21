@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.7</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v5.8</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -2556,20 +2556,29 @@ function showPosCustomerLookup(){
 
     results.innerHTML=`
       <div class="customer-lookup-count">${list.length} patient${list.length===1?'':'s'} found</div>
-      <div class="customer-lookup-list">
+      <div class="customer-lookup-table">
+        <div class="customer-lookup-head">
+          <span>Patient</span><span>Contact</span><span>Alerts</span><span>Action</span>
+        </div>
         ${list.map(c=>`
-          <button type="button" class="customer-lookup-row ${Number(appState.selectedCustomerId)===c.id?'selected':''}" data-select-customer="${c.id}">
+          <div class="customer-lookup-item ${Number(appState.selectedCustomerId)===c.id?'selected':''}">
             <div class="customer-lookup-main">
               <b>${esc(c.name)}</b>
-              <small>ID #${c.id} • ${esc(c.phone||'No phone')} ${c.email?'• '+esc(c.email):''}</small>
+              <small>Patient ID #${c.id}</small>
+            </div>
+            <div class="customer-lookup-contact">
+              <span>${esc(c.phone||'No phone')}</span>
+              <small>${esc(c.email||'No email')}</small>
             </div>
             <div class="customer-lookup-alerts">
               ${c.allergies?`<span class="lookup-alert allergy">Allergy: ${esc(c.allergies)}</span>`:''}
               ${c.medicalConditions?`<span class="lookup-alert condition">Condition: ${esc(c.medicalConditions)}</span>`:''}
               ${!c.allergies&&!c.medicalConditions?'<span class="lookup-alert clear">No alerts recorded</span>':''}
             </div>
-            <span class="customer-select-text">Select</span>
-          </button>`).join('') || '<div class="empty">No matching patients.</div>'}
+            <div class="customer-lookup-action">
+              <button type="button" class="btn-primary btn-xs" data-select-customer="${c.id}">Select</button>
+            </div>
+          </div>`).join('') || '<div class="empty">No matching patients.</div>'}
       </div>`;
 
     results.querySelectorAll('[data-select-customer]').forEach(btn=>btn.onclick=()=>{
