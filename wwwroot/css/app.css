@@ -402,3 +402,84 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .pos-v62-search-row,.pos-v62-filter-row,.pos-v62-checkout-grid{grid-template-columns:1fr}
   .pos-v62-quick-actions{grid-template-columns:repeat(2,1fr)}
 }
+
+
+/* ============================================================================
+ POS RESPONSIVE DESKTOP FIX — v6.3
+ PURPOSE:
+ Keeps the approved two-column POS workstation at common 1024px/1100px browser
+ widths and only stacks the workspace on genuinely narrow screens.
+ REFERENCE:
+ Some Windows display scaling settings report a smaller CSS viewport than the
+ physical screenshot width, which caused v6.2's 1200px breakpoint to stack early.
+============================================================================ */
+
+/* Force the approved workstation composition at normal desktop/laptop widths. */
+.pos-v62-main-grid{
+  grid-template-columns:minmax(0,1.12fr) minmax(350px,.88fr);
+  gap:12px;
+}
+.pos-v62-bottom-grid{
+  grid-template-columns:minmax(0,1.12fr) minmax(360px,.88fr);
+  gap:12px;
+}
+.pos-v62-filter-row{
+  grid-template-columns:minmax(120px,1fr) minmax(145px,1fr) minmax(120px,.9fr) auto;
+}
+.pos-v62-customer-strip{
+  grid-template-columns:auto auto minmax(0,1fr) auto;
+}
+.pos-v62-customer-data{flex-wrap:nowrap}
+.pos-v62-checkout-grid{grid-template-columns:1fr 1fr}
+.pos-v62-pay-here,.pos-v62-send-cashier{
+  min-height:82px;
+  align-content:center;
+}
+.pos-v62-quick-actions{grid-template-columns:repeat(5,minmax(0,1fr))}
+
+/* Product/cart panels should stay compact enough to fit side by side. */
+.pos-v62-products .panel-body,
+.pos-v62-cart .panel-body{padding:12px}
+.pos-v62-product-table th,
+.pos-v62-product-table td,
+.pos-v62-cart-table th,
+.pos-v62-cart-table td{padding:8px 9px}
+.pos-v62-product-table-wrap{max-height:390px}
+.pos-v62-cart-table-wrap{max-height:250px}
+
+/* Override v6.2's early 1200px stack. */
+@media(max-width:1200px) and (min-width:861px){
+  .pos-v62-main-grid{
+    grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr);
+  }
+  .pos-v62-bottom-grid{
+    grid-template-columns:minmax(0,1.08fr) minmax(340px,.92fr);
+  }
+  .pos-v62-customer-strip{
+    grid-template-columns:auto auto minmax(0,1fr) auto;
+  }
+  .pos-v62-customer-data{
+    grid-column:auto;
+    flex-wrap:nowrap;
+  }
+  .pos-v62-customer-actions{
+    grid-column:auto;
+    flex-wrap:nowrap;
+  }
+  .pos-v62-filter-row{
+    grid-template-columns:minmax(115px,1fr) minmax(135px,1fr) minmax(110px,.9fr) auto;
+  }
+}
+
+/* Stack only on narrow tablet/mobile screens. */
+@media(max-width:860px){
+  .pos-v62-main-grid,.pos-v62-bottom-grid{grid-template-columns:1fr}
+  .pos-v62-customer-strip{grid-template-columns:auto 1fr}
+  .pos-v62-customer-data{grid-column:1/-1;flex-wrap:wrap}
+  .pos-v62-customer-actions{grid-column:1/-1;flex-wrap:wrap}
+  .pos-v62-filter-row{grid-template-columns:1fr 1fr}
+}
+@media(max-width:650px){
+  .pos-v62-filter-row,.pos-v62-checkout-grid{grid-template-columns:1fr}
+  .pos-v62-quick-actions{grid-template-columns:repeat(2,1fr)}
+}
