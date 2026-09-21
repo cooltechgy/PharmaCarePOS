@@ -147,3 +147,25 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 .lookup-alert.clear{background:#e7f8ef;color:#16744a}
 .customer-select-text{font-size:12px;font-weight:850;color:#147bd1}
 @media(max-width:850px){.pos-customer-bar{grid-template-columns:1fr 1fr}.pos-customer-current{grid-column:1/-1}.customer-lookup-row{grid-template-columns:1fr}.customer-select-text{justify-self:start}.customer-lookup-search{grid-template-columns:1fr}}
+
+
+/* Checkout routing + Cashier — v5.4 */
+.checkout-setting-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.checkout-setting-card{display:grid;grid-template-columns:auto auto 1fr;gap:12px;align-items:start;padding:16px;border:1px solid #dce8f1;border-radius:12px;background:#fff;cursor:pointer}
+.checkout-setting-card:hover,.checkout-setting-card.selected{border-color:#59a9ec;background:#eff8ff}
+.checkout-setting-card input{margin-top:7px;width:auto}
+.checkout-setting-icon{font-size:28px;line-height:1}
+.checkout-setting-card b,.checkout-setting-card small{display:block}
+.checkout-setting-card small{margin-top:5px;color:#6f8292;line-height:1.4;font-weight:500}
+.checkout-route-note{margin-top:12px;padding:9px 12px;border-radius:9px;background:#f6f9fc;border:1px solid #e1e9ef;color:#5b7082;font-size:12px}
+.checkout-route-note span{color:#8494a2}
+.checkout-two-way{flex-wrap:wrap}
+.cashier-summary-cards{grid-template-columns:repeat(2,minmax(0,260px))}
+.cashier-table .cashier-payment-method{min-width:110px}
+.cashier-amount{font-size:16px;color:#0a8050}
+.cashier-empty{padding:42px 16px;color:#198754;font-weight:800}
+@media(max-width:760px){
+  .checkout-setting-cards{grid-template-columns:1fr}
+  .cashier-summary-cards{grid-template-columns:1fr 1fr}
+  .checkout-two-way>button{flex:1 1 45%}
+}
