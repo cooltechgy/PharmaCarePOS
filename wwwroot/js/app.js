@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.5</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.6</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -4610,5 +4610,404 @@ function bindPos(){
 
   filterPosProducts();
   loadPosRecentSales();
+  setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ POS FULL / COMPACT VIEW SWITCH — v6.6
+ PURPOSE:
+ Provides two cashier-friendly POS layouts without losing cart/customer state.
+ REFERENCE:
+ The selected view mode is stored locally so each workstation remembers its choice.
+============================================================================ */
+
+function posViewModeKey(){
+  return `pharmacare.posViewMode.${appState.session?.tenantId||'default'}`;
+}
+
+function getPosViewMode(){
+  return localStorage.getItem(posViewModeKey())==='compact'?'compact':'full';
+}
+
+function setPosViewMode(mode){
+  localStorage.setItem(posViewModeKey(),mode==='compact'?'compact':'full');
+}
+
+/*
+ PURPOSE:
+ Shared top controls for switching between Full and Compact POS layouts.
+*/
+function posViewSwitcher(mode){
+  return `
+    <div class="pos-view-switcher">
+      <button class="${mode==='full'?'active':''}" data-pos-view-mode="full">Full View</button>
+      <button class="${mode==='compact'?'active':''}" data-pos-view-mode="compact">Compact View</button>
+    </div>`;
+}
+
+/*
+ PURPOSE:
+ Compact POS keeps the essential sale workflow visible in a smaller working area.
+*/
+function compactPosView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const heldCount=Array.isArray(appState.heldSales)?appState.heldSales.length:0;
+
+  return `
+  <div class="pos-workspace-v62 pos-compact-v66">
+    <div class="pos-v62-titlebar compact-titlebar">
+      <div class="pos-v62-title">
+        <span class="pos-v62-title-icon">🛒</span>
+        <div><h1>POS Sales – Compact View</h1><p>Fast checkout workspace.</p></div>
+      </div>
+      ${posViewSwitcher('compact')}
+    </div>
+
+    <section class="pos-v62-customer-strip compact-customer-strip">
+      <div class="pos-v62-customer-icon">👤</div>
+      <b>Customer</b>
+      <div class="pos-v62-customer-data">
+        <strong>${patient?esc(patient.name):'Walk-in Customer'}</strong>
+        ${patient?.phone?`<span>☎ ${esc(patient.phone)}</span>`:''}
+        ${patient?.allergies?`<span class="pos-v62-alert">Allergy: ${esc(patient.allergies)}</span>`:'<span class="pos-v62-ok">No alerts</span>'}
+      </div>
+      <div class="pos-v62-customer-actions">
+        <button class="btn-primary" id="customerLookupBtn">⌕ Lookup</button>
+        <button class="btn-light" id="quickAddPatientBtn">＋ Patient</button>
+        <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>Walk-in</button>
+      </div>
+    </section>
+
+    <div class="compact-pos-grid">
+      <section class="panel compact-search-panel">
+        <div class="panel-head"><span>💊 Product Search</span><span class="badge blue">Barcode Ready</span></div>
+        <div class="panel-body">
+          <div class="pos-v62-search-row">
+            <div class="pos-v62-search-box">
+              <span>⌕</span>
+              <input id="posSearch" placeholder="Product name or barcode..." autocomplete="off">
+            </div>
+            <button class="btn-primary" id="posSearchBtn">Search</button>
+          </div>
+          <div class="compact-product-list" id="compactProductList">
+            ${appState.products.slice(0,120).map(p=>{
+              const stock=stockForProduct(p.id);
+              return `<button class="compact-product-row pos-product-row" data-product-id="${p.id}" data-stock="${stock}">
+                <span><b>${esc(p.name)}</b><small>${esc(p.strength||p.genericName||'')}</small></span>
+                <span class="${Number(stock)<=10?'danger-text':'stock-good'}">Qty ${stock}</span>
+                <span>${money(p.sellingPrice)}</span>
+                <span class="compact-add">＋</span>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>
+      </section>
+
+      <section class="panel compact-cart-panel">
+        <div class="panel-head">
+          <span>🛒 Cart (${appState.cart.length})</span>
+          <button class="btn-danger btn-xs" id="clearCartBtn">Clear</button>
+        </div>
+        <div class="panel-body pos-v62-cart-body">
+          <div class="compact-cart-list">
+            ${appState.cart.map((l,i)=>`
+              <div class="compact-cart-row">
+                <div><b>${esc(l.productName)}</b><small>${esc(l.batchNo)} • ${fmtDate(l.expiryDate)}</small></div>
+                <input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}">
+                <b>${money(Number(l.quantity)*Number(l.unitPrice))}</b>
+                <button class="btn-danger btn-xs" data-remove-cart="${i}">×</button>
+              </div>`).join('') || '<div class="empty">Cart is empty.</div>'}
+          </div>
+
+          <div class="pos-v62-totals compact-totals">
+            <div><span>Subtotal</span><b>${money(subtotal)}</b></div>
+            <div class="pos-v62-total"><span>Total</span><strong>${money(subtotal)}</strong></div>
+          </div>
+
+          <div class="pos-v62-checkout-grid">
+            <button class="pos-v62-pay-here" id="payHereBtn" ${appState.cart.length?'':'disabled'}>
+              <b>💳 Pay Here</b><span>Choose payment method</span>
+            </button>
+            <button class="pos-v62-send-cashier" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}>
+              <b>👥 Send to Cashier</b><span>Payment Pending</span>
+            </button>
+          </div>
+
+          <div class="pos-v62-secondary-actions compact-secondary-actions">
+            <button class="btn-light" id="holdSaleBtn">Ⅱ Hold</button>
+            <button class="btn-light" id="recallHeldBtn">↩ Recall${heldCount?` (${heldCount})`:''}</button>
+            <button class="btn-light" id="printBtn">🖨 Print</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>`;
+}
+
+/*
+ PURPOSE:
+ Full POS retains the current expanded workspace and adds the Full/Compact switch.
+*/
+function fullPosView(){
+  const html = (function(){
+    const subtotal=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+    const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+    const checkout=getCheckoutSettings();
+    const categories=posFilterValues('category');
+    const manufacturers=posFilterValues('manufacturer');
+    const heldCount=Array.isArray(appState.heldSales)?appState.heldSales.length:0;
+
+    return `
+    <div class="pos-workspace-v62">
+      <div class="pos-v62-titlebar">
+        <div class="pos-v62-title">
+          <span class="pos-v62-title-icon">🛒</span>
+          <div><h1>POS Sales – Full View</h1><p>Scan or search products, add to cart and complete sale.</p></div>
+        </div>
+        <div class="pos-v62-status">
+          ${posViewSwitcher('full')}
+          <span class="sync-pill">${navigator.onLine?'● Online':'● Offline'}</span>
+        </div>
+      </div>
+
+      ${navigator.onLine?'':'<div class="offline-banner">Offline sale mode is active. Sales are stored locally and synchronize when the connection returns.</div>'}
+
+      <section class="pos-v62-customer-strip">
+        <div class="pos-v62-customer-icon">👤</div>
+        <b>Customer / Patient</b>
+        <div class="pos-v62-customer-data">
+          <strong>${patient?esc(patient.name):'Walk-in Customer'}</strong>
+          ${patient?`<span>(ID: #${patient.id})</span>`:''}
+          ${patient?.phone?`<span>☎ ${esc(patient.phone)}</span>`:''}
+          ${patient?.email?`<span>✉ ${esc(patient.email)}</span>`:''}
+          ${patient?.allergies?`<span class="pos-v62-alert">Allergy: ${esc(patient.allergies)}</span>`:'<span class="pos-v62-ok">No alerts</span>'}
+        </div>
+        <div class="pos-v62-customer-actions">
+          <button class="btn-primary" id="customerLookupBtn">⌕ Lookup</button>
+          <button class="btn-light" id="quickAddPatientBtn">＋ New Patient</button>
+          <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>👥 Walk-in</button>
+        </div>
+      </section>
+
+      <div class="pos-v62-main-grid">
+        <section class="panel pos-v62-products">
+          <div class="panel-head"><span>💊 Product Search</span><span class="badge blue">Barcode Ready</span></div>
+          <div class="panel-body">
+            <div class="pos-v62-search-row">
+              <div class="pos-v62-search-box"><span>⌕</span><input id="posSearch" placeholder="Type product name, barcode, or RxNorm ID..." autocomplete="off"></div>
+              <button class="btn-primary" id="posSearchBtn">Search</button>
+            </div>
+            <div class="pos-v62-filter-row">
+              <select id="posCategoryFilter"><option value="">All Categories</option>${categories.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+              <select id="posManufacturerFilter"><option value="">All Manufacturers</option>${manufacturers.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>
+              <select id="posStockFilter"><option value="in">In Stock Only</option><option value="all">All Stock</option><option value="low">Low Stock ≤ 10</option></select>
+              <button class="btn-light" id="clearProductFiltersBtn">Clear</button>
+            </div>
+            <div class="pos-v62-product-count" id="posProductCount">Showing ${appState.products.length} products</div>
+            <div class="table-wrap pos-v62-product-table-wrap">
+              <table class="data-table pos-v62-product-table">
+                <thead><tr><th>Product</th><th>Strength</th><th>Form</th><th>Stock</th><th>Price</th><th>Action</th></tr></thead>
+                <tbody>${appState.products.slice(0,1000).map(p=>{
+                  const stock=stockForProduct(p.id);
+                  return `<tr class="pos-product-row" data-product-id="${p.id}" data-category="${esc(p.category||'')}" data-manufacturer="${esc(p.manufacturer||'')}" data-stock="${stock}">
+                    <td><b>${esc(p.name)}</b><small>${esc(p.genericName||'')}</small></td>
+                    <td>${esc(p.strength||'—')}</td><td>${esc(p.dosageForm||'—')}</td>
+                    <td><b class="${Number(stock)<=10?'danger-text':'stock-good'}">${stock}</b></td>
+                    <td>${money(p.sellingPrice)}</td>
+                    <td><button class="btn-primary btn-xs" data-add-product="${p.id}">🛒 Add</button></td>
+                  </tr>`;
+                }).join('')}</tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel pos-v62-cart">
+          <div class="panel-head"><span>🛒 Cart (${appState.cart.length})</span><button class="btn-danger btn-xs" id="clearCartBtn">Clear Cart</button></div>
+          <div class="panel-body pos-v62-cart-body">
+            <div class="table-wrap pos-v62-cart-table-wrap">
+              <table class="data-table pos-v62-cart-table">
+                <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Total</th><th></th></tr></thead>
+                <tbody>${appState.cart.map((l,i)=>`<tr>
+                  <td><b>${esc(l.productName)}</b><small>Batch ${esc(l.batchNo)} • Exp ${fmtDate(l.expiryDate)}</small>${l.directions?`<small class="directions-line">${esc(l.directions)}</small>`:''}</td>
+                  <td>${money(l.unitPrice)}</td>
+                  <td><input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}"></td>
+                  <td><b>${money(Number(l.quantity)*Number(l.unitPrice))}</b></td>
+                  <td class="nowrap"><button class="btn-danger btn-xs" data-remove-cart="${i}">×</button></td>
+                </tr>`).join('')||'<tr><td colspan="5" class="empty">Cart is empty.</td></tr>'}</tbody>
+              </table>
+            </div>
+
+            <div class="pos-v62-totals">
+              <div><span>Subtotal</span><b>${money(subtotal)}</b></div>
+              <div><span>Discount</span><b>${money(0)}</b></div>
+              <div class="pos-v62-total"><span>Total</span><strong>${money(subtotal)}</strong></div>
+            </div>
+
+            <div class="pos-v62-checkout-grid">
+              <button class="pos-v62-pay-here" id="payHereBtn" ${appState.cart.length?'':'disabled'}><b>💳 Pay Here</b><span>Choose payment method next</span></button>
+              <button class="pos-v62-send-cashier" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}><b>👥 Send to Cashier</b><span>Order complete • Payment Pending</span></button>
+            </div>
+
+            <div class="pos-v62-secondary-actions">
+              <button class="btn-light" id="holdSaleBtn">Ⅱ Hold Sale</button>
+              <button class="btn-light" id="recallHeldBtn">↩ Recall Held${heldCount?` (${heldCount})`:''}</button>
+              <button class="btn-light" id="printBtn">🖨 Print</button>
+              <span>Default: <b>${checkout.defaultRoute==='cashier'?'Send to Cashier':'Pay Here'}</b></span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="pos-v62-bottom-grid">
+        <section class="panel">
+          <div class="panel-head"><span>◷ Recent Sales</span><button class="btn-light btn-xs" id="viewAllSalesBtn">View Reports</button></div>
+          <div class="panel-body" id="posRecentSales"><div class="empty">${navigator.onLine?'Loading recent sales...':'Recent server sales unavailable offline.'}</div></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span>⚡ Quick Actions</span></div>
+          <div class="panel-body">
+            <div class="pos-v62-quick-actions">
+              <button data-pos-quick="stock"><span>▣</span><b>Stock Check</b></button>
+              <button data-pos-quick="price"><span>🏷</span><b>Price Check</b></button>
+              <button data-pos-quick="hold"><span>Ⅱ</span><b>Hold Sale</b></button>
+              <button data-pos-quick="recall"><span>↩</span><b>Recall Held</b></button>
+              <button data-pos-quick="cashier"><span>💵</span><b>Cashier</b></button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>`;
+  })();
+
+  return html;
+}
+
+function posView(){
+  return getPosViewMode()==='compact'?compactPosView():fullPosView();
+}
+
+/*
+ PURPOSE:
+ v6.6 binding supports both layouts using the same core sale workflows.
+*/
+function bindPos(){
+  const search=document.getElementById('posSearch');
+
+  document.querySelectorAll('[data-pos-view-mode]').forEach(btn=>btn.onclick=()=>{
+    setPosViewMode(btn.dataset.posViewMode);
+    render();
+  });
+
+  const compactFilter=()=>{
+    const q=String(search?.value||'').trim().toLowerCase();
+    document.querySelectorAll('.compact-product-row').forEach(row=>{
+      const p=appState.products.find(x=>String(x.id)===row.dataset.productId);
+      const text=`${p?.name||''} ${p?.genericName||''} ${p?.barcode||''} ${p?.rxNormId||''}`.toLowerCase();
+      row.style.display=!q||text.includes(q)?'grid':'none';
+    });
+  };
+
+  if(getPosViewMode()==='compact'){
+    search?.addEventListener('input',compactFilter);
+  }else{
+    search?.addEventListener('input',filterPosProducts);
+    document.getElementById('posCategoryFilter')?.addEventListener('change',filterPosProducts);
+    document.getElementById('posManufacturerFilter')?.addEventListener('change',filterPosProducts);
+    document.getElementById('posStockFilter')?.addEventListener('change',filterPosProducts);
+  }
+
+  search?.addEventListener('keydown',e=>{
+    if(e.key!=='Enter')return;
+    e.preventDefault();
+    const value=String(search.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+    }
+    getPosViewMode()==='compact'?compactFilter():filterPosProducts();
+  });
+
+  document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+    const value=String(search?.value||'').trim();
+    const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+    if(exact){
+      handlePosBarcodeScan(value);
+      search.value='';
+    }
+    getPosViewMode()==='compact'?compactFilter():filterPosProducts();
+  });
+
+  document.getElementById('clearProductFiltersBtn')?.addEventListener('click',()=>{
+    if(search)search.value='';
+    const category=document.getElementById('posCategoryFilter'); if(category)category.value='';
+    const manufacturer=document.getElementById('posManufacturerFilter'); if(manufacturer)manufacturer.value='';
+    const stock=document.getElementById('posStockFilter'); if(stock)stock.value='in';
+    filterPosProducts();
+    search?.focus();
+  });
+
+  document.querySelectorAll('[data-add-product]').forEach(btn=>btn.onclick=e=>{
+    e.stopPropagation();
+    appState.selectedProductId=Number(btn.dataset.addProduct);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.querySelectorAll('.pos-product-row,.compact-product-row').forEach(row=>row.onclick=e=>{
+    if(e.target.closest('[data-add-product]'))return;
+    appState.selectedProductId=Number(row.dataset.productId);
+    showBatchSelectionModal(appState.selectedProductId);
+  });
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{appState.selectedCustomerId=null;render();toast('Walk-in Customer selected.');});
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{appState.cart=[];render();});
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{appState.cart.splice(Number(btn.dataset.removeCart),1);render();});
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+
+  document.getElementById('payHereBtn')?.addEventListener('click',showPayHereMethodModal);
+  document.getElementById('sendCashierBtn')?.addEventListener('click',()=>completeSale('cashier'));
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  const holdCurrentSale=()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({id:Date.now(),cart:appState.cart.map(x=>({...x})),paymentMethod:appState.paymentMethod,customerId:appState.selectedCustomerId});
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    appState.selectedCustomerId=null;
+    render();
+    toast('Sale held locally.');
+  };
+
+  document.getElementById('holdSaleBtn')?.addEventListener('click',holdCurrentSale);
+  document.getElementById('recallHeldBtn')?.addEventListener('click',showHeldOrdersModal);
+
+  document.querySelectorAll('[data-pos-quick]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.posQuick;
+    if(action==='stock'){appState.view='stock';render();return;}
+    if(action==='price'){search?.focus();search?.select();return;}
+    if(action==='hold'){holdCurrentSale();return;}
+    if(action==='recall'){showHeldOrdersModal();return;}
+    if(action==='cashier'){appState.view='cashier';render();return;}
+  });
+
+  document.getElementById('viewAllSalesBtn')?.addEventListener('click',()=>{appState.view='reports';render();});
+
+  if(getPosViewMode()==='full'){
+    filterPosProducts();
+    loadPosRecentSales();
+  }else{
+    compactFilter();
+  }
+
   setTimeout(()=>search?.focus(),0);
 }
