@@ -610,3 +610,21 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 @media(max-width:650px){
   .compact-barcode-input{font-size:16px;min-height:50px}
 }
+
+
+/* Compact POS item lookup — v6.9 */
+.compact-scan-with-lookup{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}
+.compact-item-lookup-btn{min-height:54px;white-space:nowrap}
+.compact-item-lookup-modal{width:min(1050px,96vw)}
+.compact-item-lookup-search{margin-bottom:12px}
+.compact-item-lookup-search input{width:100%;font-size:16px}
+.compact-item-lookup-table-wrap{max-height:58vh;overflow:auto;border:1px solid #dce7ef;border-radius:9px}
+.compact-item-lookup-table{margin:0}
+.compact-item-lookup-table thead th{position:sticky;top:0;z-index:1}
+.compact-item-lookup-table td:first-child b,
+.compact-item-lookup-table td:first-child small{display:block}
+.compact-item-lookup-table td:first-child small{margin-top:3px;color:#71869a}
+@media(max-width:650px){
+  .compact-scan-with-lookup{grid-template-columns:1fr}
+  .compact-item-lookup-btn{width:100%}
+}

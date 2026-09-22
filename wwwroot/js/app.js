@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.8</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.9</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -5365,6 +5365,332 @@ function bindPos(){
   });
 
   if(compact){
+    search?.addEventListener('keydown',e=>{
+      if(e.key!=='Enter')return;
+      e.preventDefault();
+
+      const barcode=String(search.value||'').trim();
+      if(!barcode){
+        toast('Scan or enter a barcode.','warning');
+        return;
+      }
+
+      const exact=appState.products.some(p=>
+        String(p.barcode||'').trim().toLowerCase()===barcode.toLowerCase()
+      );
+
+      if(exact){
+        handlePosBarcodeScan(barcode);
+        search.value='';
+      }else{
+        toast(`Barcode not found: ${barcode}`,'warning');
+        search.select();
+      }
+    });
+  }else{
+    search?.addEventListener('input',filterPosProducts);
+    document.getElementById('posCategoryFilter')?.addEventListener('change',filterPosProducts);
+    document.getElementById('posManufacturerFilter')?.addEventListener('change',filterPosProducts);
+    document.getElementById('posStockFilter')?.addEventListener('change',filterPosProducts);
+
+    search?.addEventListener('keydown',e=>{
+      if(e.key!=='Enter')return;
+      e.preventDefault();
+      const value=String(search.value||'').trim();
+      const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+      if(exact){
+        handlePosBarcodeScan(value);
+        search.value='';
+      }
+      filterPosProducts();
+    });
+
+    document.getElementById('posSearchBtn')?.addEventListener('click',()=>{
+      const value=String(search?.value||'').trim();
+      const exact=appState.products.some(p=>String(p.barcode||'').trim().toLowerCase()===value.toLowerCase());
+      if(exact){
+        handlePosBarcodeScan(value);
+        search.value='';
+      }
+      filterPosProducts();
+    });
+
+    document.getElementById('clearProductFiltersBtn')?.addEventListener('click',()=>{
+      if(search)search.value='';
+      const category=document.getElementById('posCategoryFilter'); if(category)category.value='';
+      const manufacturer=document.getElementById('posManufacturerFilter'); if(manufacturer)manufacturer.value='';
+      const stock=document.getElementById('posStockFilter'); if(stock)stock.value='in';
+      filterPosProducts();
+      search?.focus();
+    });
+
+    document.querySelectorAll('[data-add-product]').forEach(btn=>btn.onclick=e=>{
+      e.stopPropagation();
+      appState.selectedProductId=Number(btn.dataset.addProduct);
+      showBatchSelectionModal(appState.selectedProductId);
+    });
+
+    document.querySelectorAll('.pos-product-row').forEach(row=>row.ondblclick=()=>{
+      appState.selectedProductId=Number(row.dataset.productId);
+      showBatchSelectionModal(appState.selectedProductId);
+    });
+  }
+
+  document.getElementById('customerLookupBtn')?.addEventListener('click',showPosCustomerLookup);
+  document.getElementById('quickAddPatientBtn')?.addEventListener('click',()=>showPersonModal('customer'));
+  document.getElementById('clearCustomerBtn')?.addEventListener('click',()=>{
+    appState.selectedCustomerId=null;
+    render();
+    toast('Walk-in Customer selected.');
+  });
+
+  document.getElementById('clearCartBtn')?.addEventListener('click',()=>{
+    appState.cart=[];
+    render();
+  });
+
+  document.querySelectorAll('[data-remove-cart]').forEach(btn=>btn.onclick=()=>{
+    appState.cart.splice(Number(btn.dataset.removeCart),1);
+    render();
+  });
+
+  document.querySelectorAll('.cart-qty').forEach(input=>input.onchange=()=>{
+    const item=appState.cart[Number(input.dataset.cartIndex)];
+    item.quantity=Math.max(1,Math.min(Number(input.value)||1,item.maxQty));
+    render();
+  });
+
+  document.querySelectorAll('[data-print-directions]').forEach(btn=>btn.onclick=()=>
+    printDirectionLabel(appState.cart[Number(btn.dataset.printDirections)])
+  );
+
+  document.getElementById('payHereBtn')?.addEventListener('click',showPayHereMethodModal);
+  document.getElementById('sendCashierBtn')?.addEventListener('click',()=>completeSale('cashier'));
+  document.getElementById('printBtn')?.addEventListener('click',()=>printCurrentBill());
+
+  const holdCurrentSale=()=>{
+    if(!appState.cart.length)return toast('Cart is empty.','warning');
+    appState.heldSales.push({
+      id:Date.now(),
+      cart:appState.cart.map(x=>({...x})),
+      paymentMethod:appState.paymentMethod,
+      customerId:appState.selectedCustomerId
+    });
+    localStorage.setItem('pharmacare.heldSales',JSON.stringify(appState.heldSales));
+    appState.cart=[];
+    appState.selectedCustomerId=null;
+    render();
+    toast('Sale held locally.');
+  };
+
+  document.getElementById('holdSaleBtn')?.addEventListener('click',holdCurrentSale);
+  document.getElementById('recallHeldBtn')?.addEventListener('click',showHeldOrdersModal);
+
+  document.querySelectorAll('[data-pos-quick]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.posQuick;
+    if(action==='stock'){appState.view='stock';render();return;}
+    if(action==='price'){search?.focus();search?.select();return;}
+    if(action==='hold'){holdCurrentSale();return;}
+    if(action==='recall'){showHeldOrdersModal();return;}
+    if(action==='cashier'){appState.view='cashier';render();return;}
+  });
+
+  document.getElementById('viewAllSalesBtn')?.addEventListener('click',()=>{
+    appState.view='reports';
+    render();
+  });
+
+  if(!compact){
+    filterPosProducts();
+    loadPosRecentSales();
+  }
+
+  setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ COMPACT POS ITEM LOOKUP — v6.9
+ PURPOSE:
+ Adds an Item Lookup popup beside the compact barcode field so staff can find
+ products manually without switching to Full View.
+============================================================================ */
+
+function showCompactItemLookup(){
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+
+  host.innerHTML=`
+    <div class="modal wide compact-item-lookup-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">Item Lookup</b>
+          <div class="muted">Search by medicine name, generic name, barcode, brand, or RxNorm ID.</div>
+        </div>
+        <button class="close-btn" id="compactItemLookupClose">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="compact-item-lookup-search">
+          <input id="compactItemLookupSearch" placeholder="Type medicine name, generic, barcode, brand, or RxNorm ID..." autocomplete="off">
+        </div>
+        <div id="compactItemLookupResults"></div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(host);
+
+  const input=document.getElementById('compactItemLookupSearch');
+  const results=document.getElementById('compactItemLookupResults');
+  const close=()=>host.remove();
+
+  const renderResults=()=>{
+    const q=String(input.value||'').trim().toLowerCase();
+
+    const list=appState.products
+      .filter(p=>{
+        if(!q)return true;
+        return `${p.name||''} ${p.genericName||''} ${p.barcode||''} ${p.brand||''} ${p.rxNormId||''}`
+          .toLowerCase()
+          .includes(q);
+      })
+      .slice(0,80);
+
+    results.innerHTML=list.length?`
+      <div class="table-wrap compact-item-lookup-table-wrap">
+        <table class="data-table compact-item-lookup-table">
+          <thead><tr><th>Medicine</th><th>Generic</th><th>Barcode</th><th>Stock</th><th>Price</th><th>Action</th></tr></thead>
+          <tbody>
+            ${list.map(p=>{
+              const stock=stockForProduct(p.id);
+              return `<tr>
+                <td><b>${esc(p.name)}</b><small>${esc(p.brand||'')}</small></td>
+                <td>${esc(p.genericName||'—')}</td>
+                <td>${esc(p.barcode||'—')}</td>
+                <td><b class="${Number(stock)<=10?'danger-text':'stock-good'}">${stock}</b></td>
+                <td>${money(p.sellingPrice)}</td>
+                <td><button class="btn-primary btn-xs" data-compact-item-select="${p.id}">Select</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+      : '<div class="empty">No matching medicines found.</div>';
+
+    results.querySelectorAll('[data-compact-item-select]').forEach(btn=>btn.onclick=()=>{
+      const productId=Number(btn.dataset.compactItemSelect);
+      appState.selectedProductId=productId;
+      close();
+      showBatchSelectionModal(productId);
+    });
+  };
+
+  document.getElementById('compactItemLookupClose').onclick=close;
+  input.addEventListener('input',renderResults);
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      const first=results.querySelector('[data-compact-item-select]');
+      if(first){
+        e.preventDefault();
+        first.click();
+      }
+    }
+  });
+
+  renderResults();
+  setTimeout(()=>input.focus(),0);
+}
+
+function compactPosView(){
+  const subtotal=appState.cart.reduce((s,l)=>s+Number(l.quantity)*Number(l.unitPrice),0);
+  const patient=appState.customers.find(c=>c.id===Number(appState.selectedCustomerId));
+  const heldCount=Array.isArray(appState.heldSales)?appState.heldSales.length:0;
+
+  return `
+  <div class="pos-workspace-v62 pos-compact-v68">
+    <div class="pos-v62-titlebar compact-titlebar">
+      <div class="pos-v62-title">
+        <span class="pos-v62-title-icon">🛒</span>
+        <div><h1>POS Sales – Compact View</h1><p>Scan barcode and complete sale.</p></div>
+      </div>
+      ${posViewSwitcher('compact')}
+    </div>
+
+    <section class="pos-v62-customer-strip compact-customer-strip">
+      <div class="pos-v62-customer-icon">👤</div>
+      <b>Customer</b>
+      <div class="pos-v62-customer-data">
+        <strong>${patient?esc(patient.name):'Walk-in Customer'}</strong>
+        ${patient?.phone?`<span>☎ ${esc(patient.phone)}</span>`:''}
+        ${patient?.allergies?`<span class="pos-v62-alert">Allergy: ${esc(patient.allergies)}</span>`:'<span class="pos-v62-ok">No alerts</span>'}
+      </div>
+      <div class="pos-v62-customer-actions">
+        <button class="btn-primary" id="customerLookupBtn">⌕ Lookup</button>
+        <button class="btn-light" id="quickAddPatientBtn">＋ Patient</button>
+        <button class="btn-light" id="clearCustomerBtn" ${patient?'':'disabled'}>Walk-in</button>
+      </div>
+    </section>
+
+    <section class="compact-scan-only compact-scan-with-lookup">
+      <input id="posSearch" class="compact-barcode-input" placeholder="Scan barcode or type barcode and press Enter..." autocomplete="off" inputmode="numeric">
+      <button class="btn-primary compact-item-lookup-btn" id="compactItemLookupBtn">⌕ Item Lookup</button>
+    </section>
+
+    <section class="panel compact-cart-panel compact-cart-only">
+      <div class="panel-head">
+        <span>🛒 Cart (${appState.cart.length})</span>
+        <button class="btn-danger btn-xs" id="clearCartBtn">Clear</button>
+      </div>
+      <div class="panel-body pos-v62-cart-body">
+        <div class="compact-cart-list">
+          ${appState.cart.map((l,i)=>`
+            <div class="compact-cart-row">
+              <div>
+                <b>${esc(l.productName)}</b>
+                <small>${esc(l.batchNo)} • ${fmtDate(l.expiryDate)}</small>
+                ${l.directions?`<small class="directions-line">${esc(l.directions)}</small>`:''}
+              </div>
+              <input class="cart-qty" data-cart-index="${i}" type="number" min="1" max="${l.maxQty}" value="${l.quantity}">
+              <b>${money(Number(l.quantity)*Number(l.unitPrice))}</b>
+              <button class="btn-danger btn-xs" data-remove-cart="${i}">×</button>
+            </div>`).join('') || '<div class="empty">Cart is empty. Scan a barcode or use Item Lookup.</div>'}
+        </div>
+
+        <div class="pos-v62-totals compact-totals">
+          <div><span>Subtotal</span><b>${money(subtotal)}</b></div>
+          <div class="pos-v62-total"><span>Total</span><strong>${money(subtotal)}</strong></div>
+        </div>
+
+        <div class="pos-v62-checkout-grid">
+          <button class="pos-v62-pay-here" id="payHereBtn" ${appState.cart.length?'':'disabled'}>
+            <b>💳 Pay Here</b><span>Choose payment method</span>
+          </button>
+          <button class="pos-v62-send-cashier" id="sendCashierBtn" ${appState.cart.length?'':'disabled'}>
+            <b>👥 Send to Cashier</b><span>Payment Pending</span>
+          </button>
+        </div>
+
+        <div class="pos-v62-secondary-actions compact-secondary-actions">
+          <button class="btn-light" id="holdSaleBtn">Ⅱ Hold</button>
+          <button class="btn-light" id="recallHeldBtn">↩ Recall${heldCount?` (${heldCount})`:''}</button>
+          <button class="btn-light" id="printBtn">🖨 Print</button>
+        </div>
+      </div>
+    </section>
+  </div>`;
+}
+
+function bindPos(){
+  const search=document.getElementById('posSearch');
+  const compact=getPosViewMode()==='compact';
+
+  document.querySelectorAll('[data-pos-view-mode]').forEach(btn=>btn.onclick=()=>{
+    setPosViewMode(btn.dataset.posViewMode);
+    render();
+  });
+
+  if(compact){
+    document.getElementById('compactItemLookupBtn')?.addEventListener('click',showCompactItemLookup);
+
     search?.addEventListener('keydown',e=>{
       if(e.key!=='Enter')return;
       e.preventDefault();
