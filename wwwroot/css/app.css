@@ -499,3 +499,35 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 .held-orders-modal{width:min(900px,96vw)}
 .held-orders-table td,.held-orders-table th{vertical-align:middle}
 @media(max-width:560px){.pay-method-grid{grid-template-columns:1fr}}
+
+
+/* Full / Compact POS view switch — v6.6 */
+.pos-view-switcher{display:inline-flex;gap:4px;padding:4px;border:1px solid #d8e4ed;border-radius:10px;background:#fff}
+.pos-view-switcher button{border:0;background:transparent;color:#5c7285;padding:7px 11px;border-radius:7px;font-weight:800;cursor:pointer}
+.pos-view-switcher button.active{background:#1687eb;color:#fff}
+.compact-pos-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.78fr);gap:12px;align-items:start}
+.compact-titlebar{margin-bottom:0}
+.compact-customer-strip{padding:9px 12px}
+.compact-search-panel .panel-body,.compact-cart-panel .panel-body{padding:10px}
+.compact-product-list{display:grid;gap:4px;max-height:505px;overflow:auto;margin-top:8px}
+.compact-product-row{grid-template-columns:minmax(0,1fr) 70px 90px 32px;gap:8px;align-items:center;text-align:left;width:100%;padding:8px 10px;border:1px solid #e0e9ef;border-radius:8px;background:#fff;color:#213d55;cursor:pointer}
+.compact-product-row:hover{background:#f2f8fd;border-color:#8dc1e8}
+.compact-product-row span:first-child b,.compact-product-row span:first-child small{display:block}
+.compact-product-row small{margin-top:2px;color:#71869a}
+.compact-add{display:grid;place-items:center;width:28px;height:28px;border-radius:7px;background:#1888ed;color:#fff;font-weight:900}
+.compact-cart-list{display:grid;gap:5px;max-height:345px;overflow:auto}
+.compact-cart-row{display:grid;grid-template-columns:minmax(0,1fr) 58px 90px auto;gap:8px;align-items:center;padding:8px;border-bottom:1px solid #e6edf2}
+.compact-cart-row>div b,.compact-cart-row>div small{display:block}
+.compact-cart-row>div small{margin-top:2px;color:#71869a}
+.compact-cart-row .cart-qty{width:54px;text-align:center}
+.compact-totals>div{padding:8px 10px!important}
+.compact-secondary-actions{justify-content:flex-start}
+@media(max-width:980px){
+  .compact-pos-grid{grid-template-columns:1fr}
+}
+@media(max-width:650px){
+  .pos-view-switcher{width:100%}
+  .pos-view-switcher button{flex:1}
+  .compact-product-row{grid-template-columns:minmax(0,1fr) 60px 75px 30px}
+  .compact-cart-row{grid-template-columns:1fr 55px 75px auto}
+}
