@@ -531,3 +531,54 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .compact-product-row{grid-template-columns:minmax(0,1fr) 60px 75px 30px}
   .compact-cart-row{grid-template-columns:1fr 55px 75px auto}
 }
+
+
+/* Cashier redesign — v6.7 */
+.cashier-v67{display:grid;gap:14px}
+.cashier-v67-header{margin-bottom:0}
+.cashier-v67-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(360px,.8fr);gap:14px;align-items:start}
+.cashier-queue-panel,.cashier-detail-panel{min-width:0}
+.cashier-queue-head{display:grid;grid-template-columns:1fr minmax(240px,340px);gap:12px;align-items:center}
+.cashier-queue-head input{width:100%}
+.cashier-v67-table-wrap{max-height:570px;overflow:auto;border:1px solid #e0e9ef;border-radius:9px}
+.cashier-v67-table{margin:0}
+.cashier-v67-table thead th{position:sticky;top:0;z-index:1}
+.cashier-v67-table td:nth-child(2) b,.cashier-v67-table td:nth-child(2) small{display:block}
+.cashier-v67-table td:nth-child(2) small{margin-top:3px;color:#71869a}
+.cashier-v67-table .selected-row{background:#eef7ff}
+.cashier-v67-queue-footer{padding:10px 4px 0;color:#6d8293;font-size:11px}
+
+.cashier-detail-card{display:grid;gap:12px;padding:15px;border-radius:11px;background:linear-gradient(135deg,#f2f8fd,#eef7ff);border:1px solid #d9e8f3}
+.cashier-detail-card>div{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.cashier-detail-card span{color:#60778a;font-size:12px}
+.cashier-detail-card small{grid-column:2;color:#71869a;text-align:right}
+.cashier-detail-total strong{font-size:28px;color:#0c67c8}
+.cashier-payment-methods{margin-top:14px;padding-top:13px;border-top:1px solid #e0e8ef}
+.cashier-payment-methods>label{display:block;font-weight:850;margin-bottom:9px;color:#29435a}
+.cashier-method-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cashier-method-grid button{display:grid;gap:6px;place-items:center;padding:13px 6px;background:#fff;border:1px solid #d7e4ed;border-radius:9px;color:#26455f}
+.cashier-method-grid button.active{background:#eef7ff;border-color:#1888ed;color:#0a65bc;box-shadow:0 0 0 2px rgba(24,136,237,.08)}
+.cashier-method-grid button span{font-size:20px}
+.cashier-amount-entry{margin-top:14px;padding-top:13px;border-top:1px solid #e0e8ef}
+.cashier-amount-label{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px}
+.cashier-amount-label span{color:#6d8294;font-size:12px}
+.cashier-amount-input{display:grid;grid-template-columns:auto 1fr;border:1px solid #d6e2eb;border-radius:8px;overflow:hidden}
+.cashier-amount-input span{display:grid;place-items:center;padding:0 12px;background:#f2f7fb;border-right:1px solid #d6e2eb;font-weight:800}
+.cashier-amount-input input{border:0!important;border-radius:0!important;box-shadow:none!important;font-size:18px;font-weight:800}
+.cashier-amount-entry>small{display:block;margin-top:7px;padding:7px 9px;border-radius:7px;background:#f3f7fa;color:#71869a}
+.cashier-confirm-btn{width:100%;margin-top:16px;padding:15px;border:0;border-radius:9px;background:linear-gradient(135deg,#24a85c,#38c76d);color:#fff;font-size:17px;font-weight:900;cursor:pointer}
+.cashier-confirm-btn:disabled{opacity:.5}
+.cashier-back-btn{width:100%;margin-top:8px}
+.cashier-v67-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:#fff;border:1px solid #dce7ef;border-radius:11px;padding:13px 0}
+.cashier-summary-item{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;padding:4px 20px;border-right:1px solid #e4ebf0}
+.cashier-summary-item:last-child{border-right:0}
+.cashier-summary-icon{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-size:22px}
+.cashier-summary-icon.blue{background:#e7f3ff;color:#147bd1}
+.cashier-summary-icon.green{background:#e9f9ef;color:#159054}
+.cashier-summary-icon.purple{background:#f4eaff;color:#7f3fca}
+.cashier-summary-item small,.cashier-summary-item strong,.cashier-summary-item span{display:block}
+.cashier-summary-item small{color:#6d8294}
+.cashier-summary-item strong{font-size:22px;color:#153b70;margin:2px 0}
+.cashier-summary-item span:last-child{color:#71869a;font-size:11px}
+@media(max-width:1050px){.cashier-v67-grid{grid-template-columns:1fr}.cashier-v67-summary{grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:720px){.cashier-queue-head{grid-template-columns:1fr}.cashier-method-grid{grid-template-columns:repeat(2,1fr)}.cashier-v67-summary{grid-template-columns:1fr}.cashier-summary-item{border-right:0;border-bottom:1px solid #e4ebf0}.cashier-summary-item:last-child{border-bottom:0}}

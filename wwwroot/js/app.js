@@ -206,7 +206,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.6</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.7</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -5010,4 +5010,256 @@ function bindPos(){
   }
 
   setTimeout(()=>search?.focus(),0);
+}
+
+
+/* ============================================================================
+ CASHIER REDESIGN — v6.7
+ PURPOSE:
+ Rebuilds Cashier to match the approved two-panel payment layout:
+ pending queue left, selected payment details right, summary cards below.
+============================================================================ */
+
+const cashierUiState={
+  rows:[],
+  selectedSaleId:null,
+  paymentMethod:'Cash',
+  search:''
+};
+
+function cashierSelectedRow(){
+  return cashierUiState.rows.find(x=>x.id===Number(cashierUiState.selectedSaleId))||null;
+}
+
+function cashierView(){
+  return `
+  <div class="cashier-v67">
+    <div class="page-header cashier-v67-header">
+      <div>
+        <h1>💳 Cashier</h1>
+        <p>Complete payment for pending POS orders</p>
+      </div>
+      <button class="btn-primary" id="refreshCashierBtn">↻ Refresh</button>
+    </div>
+
+    <div class="cashier-v67-grid">
+      <section class="panel cashier-queue-panel">
+        <div class="panel-head cashier-queue-head">
+          <span>◷ Pending Payment Queue <b id="cashierQueueCount">(0)</b></span>
+          <input id="cashierSearch" placeholder="Search by invoice, customer name..." autocomplete="off">
+        </div>
+        <div class="panel-body" id="cashierPendingBody">
+          <div class="empty">Loading pending payments...</div>
+        </div>
+      </section>
+
+      <section class="panel cashier-detail-panel">
+        <div class="panel-head"><span>▤ Payment Details</span></div>
+        <div class="panel-body" id="cashierPaymentDetail">
+          <div class="empty">Select a pending order to begin payment.</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="cashier-v67-summary">
+      <div class="cashier-summary-item">
+        <span class="cashier-summary-icon blue">▤</span>
+        <div><small>Pending Orders</small><strong id="cashierPendingCount">0</strong><span>Awaiting payment</span></div>
+      </div>
+      <div class="cashier-summary-item">
+        <span class="cashier-summary-icon green">💵</span>
+        <div><small>Total Pending Value</small><strong id="cashierPendingValue">${money(0)}</strong><span id="cashierPendingAcross">Across 0 orders</span></div>
+      </div>
+      <div class="cashier-summary-item">
+        <span class="cashier-summary-icon purple">✓</span>
+        <div><small>Completed Today</small><strong id="cashierCompletedToday">0</strong><span>Paid orders</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCashierQueue(){
+  const host=document.getElementById('cashierPendingBody');
+  if(!host)return;
+
+  const q=String(cashierUiState.search||'').trim().toLowerCase();
+  const rows=cashierUiState.rows.filter(row=>{
+    if(!q)return true;
+    return `${row.invoiceNo||''} ${row.customerName||''} ${row.customerPhone||''}`.toLowerCase().includes(q);
+  });
+
+  const count=document.getElementById('cashierQueueCount');
+  if(count)count.textContent=`(${rows.length})`;
+
+  host.innerHTML=rows.length?`
+    <div class="table-wrap cashier-v67-table-wrap">
+      <table class="data-table cashier-v67-table">
+        <thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Method</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>
+          ${rows.map(row=>`
+            <tr class="${Number(cashierUiState.selectedSaleId)===row.id?'selected-row':''}">
+              <td><b>${esc(row.invoiceNo)}</b></td>
+              <td><b>${esc(row.customerName||'Walk-in Customer')}</b><small>${esc(row.customerPhone||'')}</small></td>
+              <td><b class="cashier-amount">${money(row.total)}</b></td>
+              <td>${esc(row.suggestedPaymentMethod||'Cash')}</td>
+              <td><span class="badge orange">Pending</span></td>
+              <td><button class="btn-light" data-cashier-select="${row.id}">Select</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="cashier-v67-queue-footer">Showing ${rows.length} pending order${rows.length===1?'':'s'}</div>`
+    : '<div class="empty cashier-empty">✓ No matching pending payments.</div>';
+
+  host.querySelectorAll('[data-cashier-select]').forEach(btn=>btn.onclick=()=>{
+    cashierUiState.selectedSaleId=Number(btn.dataset.cashierSelect);
+    const row=cashierSelectedRow();
+    cashierUiState.paymentMethod=row?.suggestedPaymentMethod||'Cash';
+    renderCashierQueue();
+    renderCashierPaymentDetail();
+  });
+}
+
+function renderCashierPaymentDetail(){
+  const host=document.getElementById('cashierPaymentDetail');
+  if(!host)return;
+
+  const row=cashierSelectedRow();
+  if(!row){
+    host.innerHTML='<div class="empty">Select a pending order to begin payment.</div>';
+    return;
+  }
+
+  host.innerHTML=`
+    <div class="cashier-detail-card">
+      <div><span>Customer</span><b>${esc(row.customerName||'Walk-in Customer')}</b><small>${esc(row.customerPhone||'')}</small></div>
+      <div><span>Invoice No.</span><b>${esc(row.invoiceNo)}</b></div>
+      <div class="cashier-detail-total"><span>Total Due</span><strong>${money(row.total)}</strong></div>
+    </div>
+
+    <div class="cashier-payment-methods">
+      <label>Select Payment Method</label>
+      <div class="cashier-method-grid">
+        ${[
+          ['Cash','💵'],
+          ['Card','💳'],
+          ['UPI','📱'],
+          ['Split','Ⅱ']
+        ].map(([name,icon])=>`
+          <button class="${cashierUiState.paymentMethod===name?'active':''}" data-cashier-pay-method="${name}">
+            <span>${icon}</span><b>${name}</b>
+          </button>`).join('')}
+      </div>
+    </div>
+
+    <div class="cashier-amount-entry">
+      <div class="cashier-amount-label"><b>Payment Amount</b><span>Due: ${money(row.total)}</span></div>
+      <div class="cashier-amount-input"><span>${esc(appState.settings?.currency||'$')}</span><input id="cashierAmountReceived" type="number" min="0" step="0.01" value="${Number(row.total).toFixed(2)}"></div>
+      <small>Enter the amount received from customer.</small>
+    </div>
+
+    <button class="cashier-confirm-btn" id="cashierConfirmPayment">💳 Confirm Payment</button>
+    <button class="btn-light cashier-back-btn" id="cashierBackToQueue">← Back to Queue</button>
+  `;
+
+  host.querySelectorAll('[data-cashier-pay-method]').forEach(btn=>btn.onclick=()=>{
+    cashierUiState.paymentMethod=btn.dataset.cashierPayMethod;
+    renderCashierPaymentDetail();
+  });
+
+  document.getElementById('cashierBackToQueue')?.addEventListener('click',()=>{
+    cashierUiState.selectedSaleId=null;
+    renderCashierQueue();
+    renderCashierPaymentDetail();
+  });
+
+  document.getElementById('cashierConfirmPayment')?.addEventListener('click',async()=>{
+    const amount=Number(document.getElementById('cashierAmountReceived')?.value||0);
+    const due=Number(row.total||0);
+
+    if(amount<due){
+      toast(`Amount received is less than amount due (${money(due)}).`,'warning');
+      return;
+    }
+
+    const confirmed=await showPaymentConfirmationModal(row,cashierUiState.paymentMethod);
+    if(!confirmed)return;
+
+    const btn=document.getElementById('cashierConfirmPayment');
+    btn.disabled=true;
+    btn.textContent='Completing Payment...';
+
+    try{
+      await api(`/api/cashier/${row.id}/complete`,{
+        method:'PUT',
+        body:JSON.stringify({
+          tenantId:appState.session.tenantId,
+          branchId:appState.session.branchId,
+          paymentMethod:cashierUiState.paymentMethod
+        })
+      });
+      toast('Payment complete.','success');
+      cashierUiState.selectedSaleId=null;
+      await loadCashierPending();
+    }catch(error){
+      btn.disabled=false;
+      btn.textContent='💳 Confirm Payment';
+      toast(error.message,'error');
+    }
+  });
+}
+
+async function loadCashierPending(){
+  const host=document.getElementById('cashierPendingBody');
+  if(!host)return;
+
+  if(!navigator.onLine){
+    host.innerHTML='<div class="empty">Cashier requires server connection. Offline POS orders will appear after synchronization.</div>';
+    return;
+  }
+
+  try{
+    const [rows,salesData]=await Promise.all([
+      api(`/api/cashier/pending?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`),
+      api(`/api/reports/sales?tenantId=${appState.session.tenantId}&branchId=${appState.session.branchId}`)
+    ]);
+
+    cashierUiState.rows=rows;
+
+    if(cashierUiState.selectedSaleId && !rows.some(x=>x.id===cashierUiState.selectedSaleId)){
+      cashierUiState.selectedSaleId=null;
+    }
+
+    const pendingTotal=rows.reduce((sum,x)=>sum+Number(x.total||0),0);
+    const today=new Date();
+    const completedToday=(salesData.sales||[]).filter(s=>{
+      const d=new Date(s.createdUtc);
+      const sameDay=d.getFullYear()===today.getFullYear()&&d.getMonth()===today.getMonth()&&d.getDate()===today.getDate();
+      const complete=!String(s.paymentMethod||'').startsWith('PENDING::');
+      return sameDay&&complete;
+    }).length;
+
+    const pendingCount=document.getElementById('cashierPendingCount');
+    const pendingValue=document.getElementById('cashierPendingValue');
+    const across=document.getElementById('cashierPendingAcross');
+    const completed=document.getElementById('cashierCompletedToday');
+    if(pendingCount)pendingCount.textContent=String(rows.length);
+    if(pendingValue)pendingValue.textContent=money(pendingTotal);
+    if(across)across.textContent=`Across ${rows.length} order${rows.length===1?'':'s'}`;
+    if(completed)completed.textContent=String(completedToday);
+
+    renderCashierQueue();
+    renderCashierPaymentDetail();
+  }catch(error){
+    host.innerHTML=`<div class="empty">Unable to load cashier queue: ${esc(error.message)}</div>`;
+  }
+}
+
+function bindCashier(){
+  document.getElementById('refreshCashierBtn')?.addEventListener('click',loadCashierPending);
+  document.getElementById('cashierSearch')?.addEventListener('input',e=>{
+    cashierUiState.search=e.target.value;
+    renderCashierQueue();
+  });
+  loadCashierPending();
 }
