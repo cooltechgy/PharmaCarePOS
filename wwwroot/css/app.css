@@ -582,3 +582,31 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
 .cashier-summary-item span:last-child{color:#71869a;font-size:11px}
 @media(max-width:1050px){.cashier-v67-grid{grid-template-columns:1fr}.cashier-v67-summary{grid-template-columns:1fr 1fr 1fr}}
 @media(max-width:720px){.cashier-queue-head{grid-template-columns:1fr}.cashier-method-grid{grid-template-columns:repeat(2,1fr)}.cashier-v67-summary{grid-template-columns:1fr}.cashier-summary-item{border-right:0;border-bottom:1px solid #e4ebf0}.cashier-summary-item:last-child{border-bottom:0}}
+
+
+/* Compact POS scan-only — v6.8 */
+.pos-compact-v68{max-width:1180px}
+.compact-scan-only{display:block}
+.compact-barcode-input{
+  width:100%;
+  min-height:54px;
+  padding:0 16px;
+  border:2px solid #8fc9f3;
+  border-radius:10px;
+  background:#fff;
+  font-size:18px;
+  font-weight:700;
+  letter-spacing:.2px;
+  box-shadow:0 0 0 3px rgba(46,140,255,.06);
+}
+.compact-barcode-input:focus{
+  outline:none;
+  border-color:#1888ed;
+  box-shadow:0 0 0 4px rgba(24,136,237,.12);
+}
+.compact-cart-only{width:100%}
+.pos-compact-v68 .compact-cart-list{max-height:360px}
+.pos-compact-v68 .compact-cart-panel .panel-body{padding:12px}
+@media(max-width:650px){
+  .compact-barcode-input{font-size:16px;min-height:50px}
+}
