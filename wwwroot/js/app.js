@@ -204,7 +204,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.0</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.1</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -3622,7 +3622,7 @@ function saveReportPdf(report){
         doc.text(`Page ${i} of ${pageCount}`,width-14,height-7,{align:'right'});
       }
 
-      doc.save(report.filename);
+      doc.save(datedReportFilename(report.filename));
       toast('PDF report saved.','success');
       return;
     }catch(e){
@@ -3883,7 +3883,7 @@ async function saveReportPdf(report){
       doc.text(`Page ${i} of ${pageCount}`,width-14,height-7,{align:'right'});
     }
 
-    doc.save(report.filename);
+    doc.save(datedReportFilename(report.filename));
     toast('PDF saved directly.','success');
   }catch(error){
     console.error(error);
@@ -5831,3 +5831,27 @@ function bindPos(){
 
   setTimeout(()=>search?.focus(),0);
 }
+
+
+/* ============================================================================
+ DATED REPORT PDF FILENAMES — v7.1
+ PURPOSE:
+ Adds the current report date to every PDF filename.
+ REFERENCE:
+ Example: sales-report-2026-09-25.pdf
+============================================================================ */
+
+function reportFileDate(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function datedReportFilename(filename){
+  const name=String(filename||'report.pdf');
+  const dot=name.toLowerCase().endsWith('.pdf')?name.slice(0,-4):name;
+  return `${dot}-${reportFileDate()}.pdf`;
+}
+
