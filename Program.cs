@@ -44,11 +44,26 @@ using (var scope = app.Services.CreateScope())
 */
 app.MapPost("/api/auth/login", async (LoginRequest request, AppDbContext db) =>
 {
-    var tenant = await db.Tenants.FirstOrDefaultAsync(x => x.Code == request.TenantCode);
-    if (tenant is null) return Results.Unauthorized();
+    /*
+     PURPOSE:
+     Lets pharmacy staff sign in with only Username + Password. The server resolves
+     the tenant/company automatically from the matching user account.
+     REFERENCE:
+     Staff should not need to know or enter a SaaS tenant/company code at login.
+     If the same credentials exist in multiple tenants, login is rejected rather
+     than silently selecting the wrong pharmacy.
+    */
+    var matches = await db.Users
+        .Where(x => x.Username == request.Username && x.PasswordHash == request.Password)
+        .ToListAsync();
 
-    var user = await db.Users.FirstOrDefaultAsync(x => x.TenantId == tenant.Id && x.Username == request.Username && x.PasswordHash == request.Password);
-    if (user is null) return Results.Unauthorized();
+    if (matches.Count != 1)
+        return Results.Unauthorized();
+
+    var user = matches[0];
+    var tenant = await db.Tenants.FirstOrDefaultAsync(x => x.Id == user.TenantId);
+    if (tenant is null)
+        return Results.Unauthorized();
 
     return Results.Ok(new
     {
@@ -657,7 +672,7 @@ app.MapFallbackToFile("index.html");
 
 app.Run();
 
-record LoginRequest(string TenantCode, string Username, string Password);
+record LoginRequest(string Username, string Password);
 record SaleRequest(int TenantId, int BranchId, string ClientOperationId, decimal Discount, string PaymentMethod, int? CustomerId, List<SaleLineRequest> Lines);
 record SaleLineRequest(int BatchId, decimal Quantity);
 record CashierPaymentRequest(int TenantId, int BranchId, string PaymentMethod);
