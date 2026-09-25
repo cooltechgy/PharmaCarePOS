@@ -153,11 +153,10 @@ function loginView() {
     <section class="login-card-wrap">
       <form class="login-card" id="loginForm">
         <h2>Welcome Back!</h2><p>Sign in to your pharmacy workspace</p>
-        <div class="field"><label>Tenant / Company Code</label><input id="tenantCode" value="pharmacare" autocomplete="organization" required></div>
-        <div class="field"><label>Username</label><input id="username" value="admin" autocomplete="username" required></div>
+        <div class="field"><label>Username</label><input id="username" value="admin" autocomplete="username" required autofocus></div>
         <div class="field"><label>Password</label><input id="password" type="password" value="Admin123!" autocomplete="current-password" required></div>
         <button class="btn-primary btn-lg" type="submit">Login</button>
-        <div class="demo-box"><b>Pharmacy:</b> pharmacare / admin / Admin123!<br><b>SaaS platform:</b> platform / superadmin / SaaS123!</div>
+        <div class="demo-box"><b>Pharmacy:</b> admin / Admin123!<br><b>SaaS platform:</b> superadmin / SaaS123!</div>
       </form>
     </section>
   </div>`;
@@ -174,7 +173,6 @@ function bindLogin() {
     event.preventDefault();
     try {
       const payload = {
-        tenantCode: document.getElementById('tenantCode').value.trim(),
         username: document.getElementById('username').value.trim(),
         password: document.getElementById('password').value
       };
@@ -206,7 +204,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v6.9</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.0</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
