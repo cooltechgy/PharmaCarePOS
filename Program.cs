@@ -67,6 +67,7 @@ app.MapPost("/api/auth/login", async (LoginRequest request, AppDbContext db) =>
 
     return Results.Ok(new
     {
+        userId = user.Id,
         tenantId = tenant.Id,
         tenantCode = tenant.Code,
         tenantName = tenant.Name,
@@ -377,17 +378,140 @@ app.MapGet("/api/users", async (int tenantId, AppDbContext db) =>
         .Select(x => new { x.Id, x.Username, x.DisplayName, x.Role, x.BranchId }).ToListAsync();
     return Results.Ok(users);
 });
+
+/*
+ PURPOSE:
+ Returns tenant branches for the Users & Roles page.
+ REFERENCE:
+ User accounts are assigned to one pharmacy branch.
+*/
+app.MapGet("/api/branches", async (int tenantId, AppDbContext db) =>
+{
+    var branches = await db.Branches
+        .Where(x => x.TenantId == tenantId)
+        .OrderBy(x => x.Name)
+        .Select(x => new { x.Id, x.Name, x.Address })
+        .ToListAsync();
+    return Results.Ok(branches);
+});
+
+/*
+ PURPOSE:
+ Creates a pharmacy staff user and assigns a built-in role.
+ REFERENCE:
+ Usernames are globally unique because v7.0 login no longer asks for tenant/company code.
+*/
 app.MapPost("/api/users", async (UserCreateRequest request, AppDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
         return Results.BadRequest(new { message = "Username and password are required." });
-    var exists = await db.Users.AnyAsync(x => x.TenantId == request.TenantId && x.Username == request.Username);
+
+    var username = request.Username.Trim();
+    var exists = await db.Users.AnyAsync(x => x.Username == username);
     if (exists) return Results.Conflict(new { message = "That username already exists." });
+
     var branchOk = await db.Branches.AnyAsync(x => x.Id == request.BranchId && x.TenantId == request.TenantId);
     if (!branchOk) return Results.BadRequest(new { message = "Branch does not belong to this tenant." });
-    var user = new AppUser { TenantId=request.TenantId, BranchId=request.BranchId, Username=request.Username.Trim(), PasswordHash=request.Password, DisplayName=request.DisplayName.Trim(), Role=string.IsNullOrWhiteSpace(request.Role)?"Cashier":request.Role.Trim() };
-    db.Users.Add(user); await db.SaveChangesAsync();
+
+    var allowedRoles = new[] { "Admin", "Pharmacist", "Cashier", "Inventory", "Viewer" };
+    var role = allowedRoles.Contains(request.Role, StringComparer.OrdinalIgnoreCase)
+        ? allowedRoles.First(x => x.Equals(request.Role, StringComparison.OrdinalIgnoreCase))
+        : "Cashier";
+
+    var user = new AppUser
+    {
+        TenantId = request.TenantId,
+        BranchId = request.BranchId,
+        Username = username,
+        PasswordHash = request.Password,
+        DisplayName = request.DisplayName.Trim(),
+        Role = role
+    };
+
+    db.Users.Add(user);
+    await db.SaveChangesAsync();
     return Results.Ok(new { user.Id, user.Username, user.DisplayName, user.Role, user.BranchId });
+});
+
+/*
+ PURPOSE:
+ Updates a pharmacy user's display name, branch, username and assigned role.
+ REFERENCE:
+ Password changes use the separate reset-password endpoint so editing a profile
+ does not accidentally overwrite the password.
+*/
+app.MapPut("/api/users/{id:int}", async (int id, UserUpdateRequest request, AppDbContext db) =>
+{
+    var user = await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId);
+    if (user is null) return Results.NotFound(new { message = "User not found." });
+
+    var username = request.Username.Trim();
+    if (string.IsNullOrWhiteSpace(username))
+        return Results.BadRequest(new { message = "Username is required." });
+
+    var duplicate = await db.Users.AnyAsync(x => x.Id != id && x.Username == username);
+    if (duplicate) return Results.Conflict(new { message = "That username already exists." });
+
+    var branchOk = await db.Branches.AnyAsync(x => x.Id == request.BranchId && x.TenantId == request.TenantId);
+    if (!branchOk) return Results.BadRequest(new { message = "Branch does not belong to this tenant." });
+
+    var allowedRoles = new[] { "Admin", "Pharmacist", "Cashier", "Inventory", "Viewer" };
+    if (!allowedRoles.Contains(request.Role, StringComparer.OrdinalIgnoreCase))
+        return Results.BadRequest(new { message = "Invalid role." });
+
+    user.Username = username;
+    user.DisplayName = request.DisplayName.Trim();
+    user.BranchId = request.BranchId;
+    user.Role = allowedRoles.First(x => x.Equals(request.Role, StringComparison.OrdinalIgnoreCase));
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { user.Id, user.Username, user.DisplayName, user.Role, user.BranchId });
+});
+
+/*
+ PURPOSE:
+ Resets a pharmacy user's password from Users & Roles.
+ REFERENCE:
+ This demo still stores passwords using the existing simplified PasswordHash field;
+ production should use ASP.NET Core Identity password hashing.
+*/
+app.MapPut("/api/users/{id:int}/password", async (int id, UserPasswordRequest request, AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+        return Results.BadRequest(new { message = "Password must be at least 6 characters." });
+
+    var user = await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == request.TenantId);
+    if (user is null) return Results.NotFound(new { message = "User not found." });
+
+    user.PasswordHash = request.Password;
+    await db.SaveChangesAsync();
+    return Results.Ok(new { status = "updated" });
+});
+
+/*
+ PURPOSE:
+ Deletes a staff account while protecting the current account and final tenant admin.
+ REFERENCE:
+ At least one Admin account must remain for tenant management.
+*/
+app.MapDelete("/api/users/{id:int}", async (int id, int tenantId, int currentUserId, AppDbContext db) =>
+{
+    if (id == currentUserId)
+        return Results.BadRequest(new { message = "You cannot delete the account you are currently using." });
+
+    var user = await db.Users.FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
+    if (user is null) return Results.NotFound(new { message = "User not found." });
+
+    if (user.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+    {
+        var adminCount = await db.Users.CountAsync(x => x.TenantId == tenantId && x.Role == "Admin");
+        if (adminCount <= 1)
+            return Results.BadRequest(new { message = "The final Admin account cannot be deleted." });
+    }
+
+    db.Users.Remove(user);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { status = "deleted" });
 });
 
 /*
@@ -684,5 +808,7 @@ record CustomerRequest(int TenantId, string Name, DateTime? DateOfBirth, string?
 record MedicineImportRequest(int TenantId, int Limit);
 record SupplierRequest(int TenantId, string Name, string ContactPerson, string Phone, string Email);
 record UserCreateRequest(int TenantId, int BranchId, string Username, string Password, string DisplayName, string Role);
+record UserUpdateRequest(int TenantId, int BranchId, string Username, string DisplayName, string Role);
+record UserPasswordRequest(int TenantId, string Password);
 record SettingsRequest(int TenantId, string PharmacyName, string Address, string Currency, string InvoicePrefix, int ExpiryAlertDays);
 record StockAdjustRequest(int TenantId, int BranchId, decimal Quantity, DateTime ExpiryDate, decimal SellingPrice);

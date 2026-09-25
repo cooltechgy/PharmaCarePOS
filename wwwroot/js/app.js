@@ -198,13 +198,14 @@ function shellView() {
     ['dashboard','⌂','Dashboard'],['pos','🛒','POS (Sales)'],['cashier','💵','Cashier'],['products','💊','Products'],['purchase','▣','Purchase'],['stock','▤','Stock'],['expiry','⏰','Expiry Stock'],['customers','👥','Customers'],['suppliers','🚚','Suppliers'],['reports','📊','Reports']
   ];
   if (appState.session.role === 'PlatformAdmin') nav.unshift(['saas','☁','SaaS Admin']);
+  if (['Admin','Pharmacist'].includes(appState.session.role)) nav.push(['usersRoles','🛡','Users & Roles']);
   nav.push(['settings','⚙','Settings']);
   return `
   <div class="shell">
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.1</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.2</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -235,6 +236,7 @@ function screenView() {
     case 'customers': return customersView();
     case 'suppliers': return suppliersView();
     case 'reports': return reportsView();
+    case 'usersRoles': return usersRolesView();
     case 'settings': return settingsView();
     case 'saas': return saasView();
     default: return dashboardView();
@@ -598,6 +600,7 @@ function bindCurrentScreen() {
   if (appState.view === 'customers') bindPeople('customer');
   if (appState.view === 'suppliers') bindPeople('supplier');
   if (appState.view === 'reports') bindReports();
+  if (appState.view === 'usersRoles') bindUsersRoles();
   if (appState.view === 'settings') bindSettings();
   if (appState.view === 'saas') bindSaas();
 }
@@ -5855,3 +5858,325 @@ function datedReportFilename(filename){
   return `${dot}-${reportFileDate()}.pdf`;
 }
 
+
+
+/* ============================================================================
+ USERS & ROLES MANAGEMENT — v7.2
+ PURPOSE:
+ Dedicated tenant staff-management page backed by MSSQL user records.
+ REFERENCE:
+ Built-in roles are Admin, Pharmacist, Cashier, Inventory and Viewer.
+============================================================================ */
+
+const builtInRoles=[
+  {
+    name:'Admin',
+    icon:'🛡',
+    description:'Full pharmacy administration and staff management.',
+    permissions:['Dashboard','POS Sales','Cashier','Products','Purchases','Stock','Customers','Reports','Settings','Users & Roles']
+  },
+  {
+    name:'Pharmacist',
+    icon:'💊',
+    description:'Pharmacy operations, dispensing and patient work.',
+    permissions:['Dashboard','POS Sales','Cashier','Products','Stock','Expiry','Customers','Reports']
+  },
+  {
+    name:'Cashier',
+    icon:'💵',
+    description:'Checkout-focused access for front-counter staff.',
+    permissions:['Dashboard','POS Sales','Cashier','Customers']
+  },
+  {
+    name:'Inventory',
+    icon:'📦',
+    description:'Purchasing, suppliers and stock control.',
+    permissions:['Dashboard','Products','Purchases','Stock','Expiry','Suppliers','Reports']
+  },
+  {
+    name:'Viewer',
+    icon:'👁',
+    description:'Read-only reporting and dashboard access.',
+    permissions:['Dashboard','Reports']
+  }
+];
+
+const usersRolesState={
+  users:[],
+  branches:[],
+  loading:false,
+  search:''
+};
+
+function usersRolesView(){
+  return `
+    <div class="page-header">
+      <div>
+        <h1>Users & Roles</h1>
+        <p>Manage pharmacy staff accounts, branch assignment and access roles.</p>
+      </div>
+      <div class="toolbar">
+        <button class="btn-light" id="refreshUsersRolesBtn">↻ Refresh</button>
+        <button class="btn-primary" id="addUserRoleBtn">＋ Add User</button>
+      </div>
+    </div>
+
+    <div class="users-role-stats">
+      <div class="metric blue"><div class="label">Users</div><div class="value" id="usersRoleUserCount">—</div></div>
+      <div class="metric green"><div class="label">Branches</div><div class="value" id="usersRoleBranchCount">—</div></div>
+      <div class="metric purple"><div class="label">Built-in Roles</div><div class="value">${builtInRoles.length}</div></div>
+    </div>
+
+    <div class="panel users-management-panel">
+      <div class="panel-head users-management-head">
+        <span>Staff Users</span>
+        <input id="usersRoleSearch" placeholder="Search username, name, role or branch..." autocomplete="off">
+      </div>
+      <div class="panel-body" id="usersRolesTableHost">
+        <div class="empty">Loading users...</div>
+      </div>
+    </div>
+
+    <div class="page-subhead">
+      <div><h2>Role Reference</h2><p>Built-in roles used when assigning staff access.</p></div>
+    </div>
+
+    <div class="role-card-grid">
+      ${builtInRoles.map(role=>`
+        <div class="role-card">
+          <div class="role-card-head"><span>${role.icon}</span><div><h3>${esc(role.name)}</h3><p>${esc(role.description)}</p></div></div>
+          <div class="role-permissions">
+            ${role.permissions.map(p=>`<span>✓ ${esc(p)}</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+
+    <div class="section-note">
+      <b>Security note:</b> this project still uses its existing simplified password field. Before production, move authentication and role enforcement to ASP.NET Core Identity/JWT with server-side authorization policies.
+    </div>
+  `;
+}
+
+function branchNameForUser(branchId){
+  return usersRolesState.branches.find(b=>b.id===Number(branchId))?.name||`Branch #${branchId}`;
+}
+
+function renderUsersRolesTable(){
+  const host=document.getElementById('usersRolesTableHost');
+  if(!host)return;
+
+  const q=String(usersRolesState.search||'').trim().toLowerCase();
+  const rows=usersRolesState.users.filter(u=>{
+    const branch=branchNameForUser(u.branchId);
+    return !q||`${u.username} ${u.displayName} ${u.role} ${branch}`.toLowerCase().includes(q);
+  });
+
+  const userCount=document.getElementById('usersRoleUserCount');
+  const branchCount=document.getElementById('usersRoleBranchCount');
+  if(userCount)userCount.textContent=String(usersRolesState.users.length);
+  if(branchCount)branchCount.textContent=String(usersRolesState.branches.length);
+
+  host.innerHTML=rows.length?`
+    <div class="table-wrap users-role-table-wrap">
+      <table class="data-table users-role-table">
+        <thead><tr><th>User</th><th>Display Name</th><th>Role</th><th>Branch</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${rows.map(u=>`
+            <tr>
+              <td><b>${esc(u.username)}</b>${Number(u.id)===Number(appState.session.userId)?'<small class="current-user-tag">Current account</small>':''}</td>
+              <td>${esc(u.displayName||'—')}</td>
+              <td><span class="badge blue">${esc(u.role)}</span></td>
+              <td>${esc(branchNameForUser(u.branchId))}</td>
+              <td class="nowrap">
+                <button class="btn-light btn-xs" data-edit-user="${u.id}">Edit</button>
+                <button class="btn-light btn-xs" data-reset-user-password="${u.id}">Password</button>
+                <button class="btn-danger btn-xs" data-delete-user="${u.id}" ${Number(u.id)===Number(appState.session.userId)?'disabled':''}>Delete</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`
+    : '<div class="empty">No matching users.</div>';
+
+  host.querySelectorAll('[data-edit-user]').forEach(btn=>btn.onclick=()=>{
+    const user=usersRolesState.users.find(x=>x.id===Number(btn.dataset.editUser));
+    if(user)showUserEditorModal(user);
+  });
+
+  host.querySelectorAll('[data-reset-user-password]').forEach(btn=>btn.onclick=()=>{
+    const user=usersRolesState.users.find(x=>x.id===Number(btn.dataset.resetUserPassword));
+    if(user)showUserPasswordModal(user);
+  });
+
+  host.querySelectorAll('[data-delete-user]').forEach(btn=>btn.onclick=async()=>{
+    const user=usersRolesState.users.find(x=>x.id===Number(btn.dataset.deleteUser));
+    if(!user)return;
+    if(!confirm(`Delete user "${user.username}"?`))return;
+
+    try{
+      await api(`/api/users/${user.id}?tenantId=${appState.session.tenantId}&currentUserId=${appState.session.userId||0}`,{method:'DELETE'});
+      toast('User deleted.','success');
+      await loadUsersRolesData();
+    }catch(error){
+      toast(error.message,'error');
+    }
+  });
+}
+
+async function loadUsersRolesData(){
+  const host=document.getElementById('usersRolesTableHost');
+  if(host)host.innerHTML='<div class="empty">Loading users...</div>';
+
+  if(!navigator.onLine){
+    if(host)host.innerHTML='<div class="empty">Users & Roles requires a server connection.</div>';
+    return;
+  }
+
+  try{
+    const [users,branches]=await Promise.all([
+      api(`/api/users?tenantId=${appState.session.tenantId}`),
+      api(`/api/branches?tenantId=${appState.session.tenantId}`)
+    ]);
+    usersRolesState.users=users;
+    usersRolesState.branches=branches;
+    renderUsersRolesTable();
+  }catch(error){
+    if(host)host.innerHTML=`<div class="empty">Unable to load users: ${esc(error.message)}</div>`;
+  }
+}
+
+function userEditorBranchOptions(selectedId){
+  return usersRolesState.branches.map(b=>`
+    <option value="${b.id}" ${Number(selectedId)===Number(b.id)?'selected':''}>${esc(b.name)}</option>
+  `).join('');
+}
+
+function userEditorRoleOptions(selectedRole){
+  return builtInRoles.map(r=>`
+    <option value="${esc(r.name)}" ${r.name===selectedRole?'selected':''}>${esc(r.name)}</option>
+  `).join('');
+}
+
+function showUserEditorModal(user=null){
+  const editing=Boolean(user);
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+
+  const defaultBranch=user?.branchId||appState.session.branchId||usersRolesState.branches[0]?.id||0;
+  const defaultRole=user?.role||'Cashier';
+
+  host.innerHTML=`
+    <div class="modal user-editor-modal">
+      <div class="modal-head">
+        <div>
+          <b class="batch-modal-title">${editing?'Edit User':'Add User'}</b>
+          <div class="muted">${editing?'Update account details and role assignment.':'Create a new pharmacy staff account.'}</div>
+        </div>
+        <button class="close-btn" id="userEditorClose">×</button>
+      </div>
+      <form id="userEditorForm">
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="field"><label>Username</label><input id="userEditorUsername" value="${esc(user?.username||'')}" autocomplete="off" required></div>
+            <div class="field"><label>Display Name</label><input id="userEditorDisplayName" value="${esc(user?.displayName||'')}" required></div>
+            <div class="field"><label>Role</label><select id="userEditorRole">${userEditorRoleOptions(defaultRole)}</select></div>
+            <div class="field"><label>Branch</label><select id="userEditorBranch">${userEditorBranchOptions(defaultBranch)}</select></div>
+            ${editing?'':`<div class="field full"><label>Temporary Password</label><input id="userEditorPassword" type="password" minlength="6" required autocomplete="new-password"></div>`}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn-light" id="userEditorCancel">Cancel</button>
+          <button type="submit" class="btn-success">${editing?'Save Changes':'Create User'}</button>
+        </div>
+      </form>
+    </div>`;
+
+  document.body.appendChild(host);
+  const close=()=>host.remove();
+  document.getElementById('userEditorClose').onclick=close;
+  document.getElementById('userEditorCancel').onclick=close;
+
+  document.getElementById('userEditorForm').onsubmit=async e=>{
+    e.preventDefault();
+
+    const body={
+      tenantId:appState.session.tenantId,
+      branchId:Number(document.getElementById('userEditorBranch').value),
+      username:document.getElementById('userEditorUsername').value.trim(),
+      displayName:document.getElementById('userEditorDisplayName').value.trim(),
+      role:document.getElementById('userEditorRole').value
+    };
+
+    if(!editing)body.password=document.getElementById('userEditorPassword').value;
+
+    try{
+      await api(editing?`/api/users/${user.id}`:'/api/users',{
+        method:editing?'PUT':'POST',
+        body:JSON.stringify(body)
+      });
+      close();
+      toast(editing?'User updated.':'User created.','success');
+      await loadUsersRolesData();
+    }catch(error){
+      toast(error.message,'error');
+    }
+  };
+}
+
+function showUserPasswordModal(user){
+  const host=document.createElement('div');
+  host.className='modal-backdrop';
+  host.innerHTML=`
+    <div class="modal user-password-modal">
+      <div class="modal-head">
+        <div><b class="batch-modal-title">Reset Password</b><div class="muted">${esc(user.displayName||user.username)} • ${esc(user.username)}</div></div>
+        <button class="close-btn" id="userPasswordClose">×</button>
+      </div>
+      <form id="userPasswordForm">
+        <div class="modal-body">
+          <div class="field"><label>New Password</label><input id="userPasswordNew" type="password" minlength="6" required autocomplete="new-password"></div>
+          <div class="field"><label>Confirm Password</label><input id="userPasswordConfirm" type="password" minlength="6" required autocomplete="new-password"></div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn-light" id="userPasswordCancel">Cancel</button>
+          <button type="submit" class="btn-success">Update Password</button>
+        </div>
+      </form>
+    </div>`;
+
+  document.body.appendChild(host);
+  const close=()=>host.remove();
+  document.getElementById('userPasswordClose').onclick=close;
+  document.getElementById('userPasswordCancel').onclick=close;
+
+  document.getElementById('userPasswordForm').onsubmit=async e=>{
+    e.preventDefault();
+    const password=document.getElementById('userPasswordNew').value;
+    const confirmPassword=document.getElementById('userPasswordConfirm').value;
+    if(password!==confirmPassword){
+      toast('Passwords do not match.','warning');
+      return;
+    }
+
+    try{
+      await api(`/api/users/${user.id}/password`,{
+        method:'PUT',
+        body:JSON.stringify({tenantId:appState.session.tenantId,password})
+      });
+      close();
+      toast('Password updated.','success');
+    }catch(error){
+      toast(error.message,'error');
+    }
+  };
+}
+
+function bindUsersRoles(){
+  document.getElementById('refreshUsersRolesBtn')?.addEventListener('click',loadUsersRolesData);
+  document.getElementById('addUserRoleBtn')?.addEventListener('click',()=>showUserEditorModal());
+  document.getElementById('usersRoleSearch')?.addEventListener('input',e=>{
+    usersRolesState.search=e.target.value;
+    renderUsersRolesTable();
+  });
+  loadUsersRolesData();
+}
