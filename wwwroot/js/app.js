@@ -205,7 +205,7 @@ function shellView() {
     <aside class="sidebar">
       <div class="side-brand"><div class="logo-mark">✚</div><span>PharmaCare POS</span></div>
       <nav class="side-nav">${nav.map(n => `<a href="#" class="nav-item ${appState.view===n[0]?'active':''}" data-view="${n[0]}"><span class="nav-icon">${n[1]}</span><span class="nav-label">${n[2]}</span></a>`).join('')}</nav>
-      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.2</div></div>
+      <div class="side-footer">Smart Pharmacy Management<br>Offline-first SaaS POS<div class="version-badge">v7.3</div></div>
     </aside>
     <main class="main">
       <header class="topbar">
@@ -4761,7 +4761,7 @@ function fullPosView(){
     const heldCount=Array.isArray(appState.heldSales)?appState.heldSales.length:0;
 
     return `
-    <div class="pos-workspace-v62">
+    <div class="pos-workspace-v62 pos-full-v73">
       <div class="pos-v62-titlebar">
         <div class="pos-v62-title">
           <span class="pos-v62-title-icon">🛒</span>

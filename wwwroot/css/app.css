@@ -659,3 +659,212 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .role-card-grid{grid-template-columns:1fr}
 }
 @media(max-width:520px){.users-role-stats{grid-template-columns:1fr}}
+
+
+/* ============================================================================
+ FULL POS VIEWPORT-FIT LAYOUT — v7.3
+ PURPOSE:
+ Keeps POS Sales – Full View inside the visible desktop browser area with no
+ page-level scrolling. Long data sets scroll only inside their own panels.
+ REFERENCE:
+ Designed for the current desktop POS shell with 74px top bar.
+============================================================================ */
+@media(min-width:861px){
+  .content:has(.pos-full-v73){
+    height:calc(100vh - 74px);
+    overflow:hidden;
+    padding:10px 14px;
+  }
+
+  .pos-full-v73{
+    height:100%;
+    min-height:0;
+    display:grid!important;
+    grid-template-rows:auto auto minmax(0,1fr) 112px;
+    gap:8px!important;
+    overflow:hidden;
+  }
+
+  .pos-full-v73 .pos-v62-titlebar{min-height:42px;padding:0!important}
+  .pos-full-v73 .pos-v62-title-icon{width:36px;height:36px;font-size:18px}
+  .pos-full-v73 .pos-v62-title h1{font-size:22px!important}
+  .pos-full-v73 .pos-v62-title p{font-size:11px;margin-top:1px!important}
+
+  .pos-full-v73 .pos-v62-customer-strip{
+    min-height:48px;
+    padding:7px 10px!important;
+    gap:8px!important;
+  }
+  .pos-full-v73 .pos-v62-customer-icon{font-size:18px}
+  .pos-full-v73 .pos-v62-customer-data{gap:7px!important}
+  .pos-full-v73 .pos-v62-customer-data strong{font-size:13px}
+  .pos-full-v73 .pos-v62-customer-actions button{padding:7px 9px}
+
+  .pos-full-v73 .pos-v62-main-grid{
+    min-height:0;
+    height:100%;
+    align-items:stretch!important;
+    gap:8px!important;
+  }
+
+  .pos-full-v73 .pos-v62-products,
+  .pos-full-v73 .pos-v62-cart{
+    height:100%;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .pos-full-v73 .panel-head{
+    min-height:34px;
+    padding:7px 10px;
+  }
+
+  .pos-full-v73 .pos-v62-products>.panel-body{
+    flex:1;
+    min-height:0;
+    display:grid;
+    grid-template-rows:auto auto auto minmax(0,1fr);
+    gap:0;
+    overflow:hidden;
+    padding:8px!important;
+  }
+
+  .pos-full-v73 .pos-v62-cart>.panel-body{
+    flex:1;
+    min-height:0;
+    display:grid!important;
+    grid-template-rows:minmax(0,1fr) auto auto auto;
+    gap:6px!important;
+    overflow:hidden;
+    padding:8px!important;
+  }
+
+  .pos-full-v73 .pos-v62-search-row{gap:6px!important}
+  .pos-full-v73 .pos-v62-search-row input,
+  .pos-full-v73 .pos-v62-filter-row select,
+  .pos-full-v73 .pos-v62-filter-row button{min-height:32px;padding-top:5px;padding-bottom:5px}
+  .pos-full-v73 .pos-v62-filter-row{margin-top:6px!important;gap:6px!important}
+  .pos-full-v73 .pos-v62-product-count{margin:5px 0 4px}
+
+  .pos-full-v73 .pos-v62-product-table-wrap,
+  .pos-full-v73 .pos-v62-cart-table-wrap{
+    min-height:0;
+    max-height:none!important;
+    height:100%;
+    overflow:auto!important;
+  }
+
+  .pos-full-v73 .pos-v62-product-table th,
+  .pos-full-v73 .pos-v62-product-table td,
+  .pos-full-v73 .pos-v62-cart-table th,
+  .pos-full-v73 .pos-v62-cart-table td{
+    padding:5px 7px!important;
+    font-size:11px;
+  }
+
+  .pos-full-v73 .pos-v62-cart-table .cart-qty{
+    width:50px;
+    min-height:28px;
+    padding:3px 5px;
+  }
+
+  .pos-full-v73 .pos-v62-totals>div{
+    padding:5px 8px!important;
+    min-height:28px;
+  }
+  .pos-full-v73 .pos-v62-total{margin-top:2px}
+  .pos-full-v73 .pos-v62-total span,
+  .pos-full-v73 .pos-v62-total strong{font-size:16px}
+
+  .pos-full-v73 .pos-v62-checkout-grid{gap:6px!important}
+  .pos-full-v73 .pos-v62-pay-here,
+  .pos-full-v73 .pos-v62-send-cashier{
+    min-height:54px!important;
+    padding:8px 10px!important;
+    gap:2px!important;
+  }
+  .pos-full-v73 .pos-v62-pay-here b,
+  .pos-full-v73 .pos-v62-send-cashier b{font-size:14px}
+  .pos-full-v73 .pos-v62-pay-here span,
+  .pos-full-v73 .pos-v62-send-cashier span{font-size:9px}
+
+  .pos-full-v73 .pos-v62-secondary-actions{
+    gap:5px!important;
+    min-height:30px;
+  }
+  .pos-full-v73 .pos-v62-secondary-actions button{
+    padding:5px 8px;
+    min-height:28px;
+  }
+
+  .pos-full-v73 .pos-v62-bottom-grid{
+    min-height:0;
+    height:112px;
+    gap:8px!important;
+    overflow:hidden;
+  }
+
+  .pos-full-v73 .pos-v62-bottom-grid>.panel{
+    min-height:0;
+    height:112px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  .pos-full-v73 .pos-v62-bottom-grid>.panel>.panel-body{
+    flex:1;
+    min-height:0;
+    overflow:hidden;
+    padding:6px 8px!important;
+  }
+
+  .pos-full-v73 #posRecentSales{
+    height:100%;
+    min-height:0;
+    overflow:auto;
+  }
+
+  .pos-full-v73 #posRecentSales .table-wrap{
+    max-height:none!important;
+    overflow:visible;
+  }
+
+  .pos-full-v73 .pos-v62-recent-table th,
+  .pos-full-v73 .pos-v62-recent-table td{
+    padding:4px 6px!important;
+    font-size:9px!important;
+  }
+
+  .pos-full-v73 .pos-v62-quick-actions{
+    height:100%;
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    gap:5px!important;
+  }
+
+  .pos-full-v73 .pos-v62-quick-actions button{
+    min-height:0;
+    padding:5px 4px!important;
+    gap:2px!important;
+  }
+
+  .pos-full-v73 .pos-v62-quick-actions button span{font-size:15px}
+  .pos-full-v73 .pos-v62-quick-actions button b{font-size:9px}
+}
+
+/* Short desktop screens get an even tighter bottom row. */
+@media(min-width:861px) and (max-height:760px){
+  .pos-full-v73{
+    grid-template-rows:auto auto minmax(0,1fr) 92px;
+  }
+  .pos-full-v73 .pos-v62-bottom-grid,
+  .pos-full-v73 .pos-v62-bottom-grid>.panel{height:92px}
+  .pos-full-v73 .pos-v62-title p{display:none}
+  .pos-full-v73 .pos-v62-customer-strip{min-height:42px;padding:5px 8px!important}
+  .pos-full-v73 .pos-v62-products>.panel-body,
+  .pos-full-v73 .pos-v62-cart>.panel-body{padding:6px!important}
+  .pos-full-v73 .pos-v62-pay-here,
+  .pos-full-v73 .pos-v62-send-cashier{min-height:46px!important}
+}
