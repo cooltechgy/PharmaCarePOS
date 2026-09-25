@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#075985" />
   <title>PharmaCare POS</title>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/css/app.css?v=7.2" />
+  <link rel="stylesheet" href="/css/app.css?v=7.3" />
 
   <style id="pos-v64-critical">
     /* PURPOSE: Critical POS layout fallback so stale external CSS cannot collapse the approved desktop layout. */
@@ -45,6 +45,23 @@
       .pos-v62-quick-actions{grid-template-columns:repeat(2,1fr)!important}
     }
   </style>
+
+  <style id="pos-v73-viewport-critical">
+    /* PURPOSE: Critical Full POS viewport-fit fallback to prevent page scrolling even if external CSS is stale. */
+    @media(min-width:861px){
+      .content:has(.pos-full-v73){height:calc(100vh - 74px)!important;overflow:hidden!important;padding:10px 14px!important}
+      .pos-full-v73{height:100%!important;min-height:0!important;grid-template-rows:auto auto minmax(0,1fr) 112px!important;gap:8px!important;overflow:hidden!important}
+      .pos-full-v73 .pos-v62-main-grid{min-height:0!important;height:100%!important;align-items:stretch!important}
+      .pos-full-v73 .pos-v62-products,.pos-full-v73 .pos-v62-cart{height:100%!important;min-height:0!important;overflow:hidden!important}
+      .pos-full-v73 .pos-v62-product-table-wrap,.pos-full-v73 .pos-v62-cart-table-wrap{max-height:none!important;height:100%!important;min-height:0!important;overflow:auto!important}
+      .pos-full-v73 .pos-v62-bottom-grid,.pos-full-v73 .pos-v62-bottom-grid>.panel{height:112px!important;min-height:0!important;overflow:hidden!important}
+    }
+    @media(min-width:861px) and (max-height:760px){
+      .pos-full-v73{grid-template-rows:auto auto minmax(0,1fr) 92px!important}
+      .pos-full-v73 .pos-v62-bottom-grid,.pos-full-v73 .pos-v62-bottom-grid>.panel{height:92px!important}
+    }
+  </style>
+
 </head>
 <body>
   <!--
@@ -55,12 +72,12 @@
   -->
   <div id="app"></div>
   <div id="toastHost" class="toast-host"></div>
-  <script src="/js/offline-db.js?v=7.2"></script>
+  <script src="/js/offline-db.js?v=7.3"></script>
   <!-- PURPOSE: Optional local direct-print bridge. REFERENCE: QZ Tray exposes local printers to the browser when the desktop QZ Tray app is installed. -->
   <script src="https://cdn.jsdelivr.net/npm/qz-tray@2.3.0/qz-tray.js"></script>
   <!-- PURPOSE: Client-side PDF report generation. REFERENCE: jsPDF + AutoTable generate downloadable pharmacy reports with repeating company headers. -->
-  <script src="/lib/jspdf.umd.min.js?v=7.2"></script>
-  <script src="/lib/jspdf.plugin.autotable.min.js?v=7.2"></script>
-  <script src="/js/app.js?v=7.2"></script>
+  <script src="/lib/jspdf.umd.min.js?v=7.3"></script>
+  <script src="/lib/jspdf.plugin.autotable.min.js?v=7.3"></script>
+  <script src="/js/app.js?v=7.3"></script>
 </body>
 </html>
