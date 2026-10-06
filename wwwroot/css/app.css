@@ -1175,3 +1175,214 @@ input,select{width:100%;border:1px solid #cfddea;border-radius:8px;padding:10px 
   .compact-v75-cart-row{grid-template-columns:minmax(0,1fr) auto auto!important}
   .compact-line-price{display:none}
 }
+
+
+/* ============================================================================
+ FULL POS COLORFUL READABILITY — v7.6
+ PURPOSE:
+ Makes Full View text easier to read and gives the primary/secondary POS actions
+ stronger, clearly visible colors while preserving the no-page-scroll layout.
+ REFERENCE:
+ Matches the approved colorful POS mockup and the v7.5 Compact View styling.
+============================================================================ */
+
+.pos-full-v76{
+  color:#0d2857;
+  font-size:13px;
+}
+.pos-full-v76 h1,
+.pos-full-v76 h2,
+.pos-full-v76 h3,
+.pos-full-v76 b,
+.pos-full-v76 strong{
+  color:#0b2352;
+  font-weight:850;
+}
+.pos-full-v76 .pos-v62-title h1{
+  color:#0a2250!important;
+  font-size:24px!important;
+  letter-spacing:-.2px;
+}
+.pos-full-v76 .pos-v62-title p{
+  color:#536f96!important;
+  font-size:11px!important;
+  font-weight:650;
+}
+.pos-full-v76 .panel,
+.pos-full-v76 .pos-v62-customer-strip{
+  border-color:#d5e5f1!important;
+  box-shadow:0 3px 12px rgba(18,68,114,.05);
+}
+.pos-full-v76 .panel-head{
+  color:#102d60;
+  font-weight:900;
+  font-size:14px;
+  background:linear-gradient(180deg,#ffffff,#fbfdff);
+}
+.pos-full-v76 .pos-v62-customer-strip>b,
+.pos-full-v76 .pos-v62-customer-data strong{
+  color:#102d60;
+  font-weight:900;
+}
+.pos-full-v76 .pos-v62-customer-data span{
+  color:#506b8f;
+  font-weight:650;
+}
+.pos-full-v76 #customerLookupBtn,
+.pos-full-v76 #posSearchBtn,
+.pos-full-v76 [data-add-product]{
+  background:linear-gradient(135deg,#0b83ff,#0064df)!important;
+  color:#fff!important;
+  border:0!important;
+  font-weight:900!important;
+  box-shadow:0 3px 8px rgba(0,105,223,.18);
+}
+.pos-full-v76 #quickAddPatientBtn,
+.pos-full-v76 #clearCustomerBtn,
+.pos-full-v76 #clearProductFiltersBtn,
+.pos-full-v76 #viewAllSalesBtn{
+  background:#eaf5ff!important;
+  color:#0b4f99!important;
+  border:1px solid #cfe3f4!important;
+  font-weight:850!important;
+}
+.pos-full-v76 #clearCartBtn{
+  background:linear-gradient(135deg,#ff5867,#ff2437)!important;
+  color:#fff!important;
+  border:0!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-search-box input,
+.pos-full-v76 select{
+  color:#173761!important;
+  font-weight:700!important;
+}
+.pos-full-v76 .pos-v62-search-box input::placeholder{
+  color:#6c83a4!important;
+}
+.pos-full-v76 .pos-v62-product-table thead th,
+.pos-full-v76 .pos-v62-cart-table thead th,
+.pos-full-v76 .pos-v62-recent-table thead th{
+  background:#edf6fd!important;
+  color:#15355f!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-product-table td,
+.pos-full-v76 .pos-v62-cart-table td,
+.pos-full-v76 .pos-v62-recent-table td{
+  color:#17345f!important;
+  font-weight:650;
+}
+.pos-full-v76 .pos-v62-product-table td:first-child b,
+.pos-full-v76 .pos-v62-cart-table td:first-child b{
+  color:#0d2c5d!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-product-table td:first-child small,
+.pos-full-v76 .pos-v62-cart-table td:first-child small{
+  color:#5a759b!important;
+}
+.pos-full-v76 .stock-good{
+  color:#0a9b39!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .danger-text{
+  color:#ff2b2b!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-totals>div{
+  color:#16345f!important;
+  font-weight:750;
+}
+.pos-full-v76 .pos-v62-total{
+  background:linear-gradient(90deg,#edf7ff,#ddecff)!important;
+}
+.pos-full-v76 .pos-v62-total span,
+.pos-full-v76 .pos-v62-total strong{
+  color:#0757c9!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-pay-here{
+  background:linear-gradient(135deg,#05a852,#19c66f)!important;
+  color:#fff!important;
+  box-shadow:0 4px 12px rgba(9,161,79,.18);
+}
+.pos-full-v76 .pos-v62-send-cashier{
+  background:linear-gradient(135deg,#ffb928,#ffd052)!important;
+  color:#102e58!important;
+  box-shadow:0 4px 12px rgba(226,155,0,.18);
+}
+.pos-full-v76 .pos-v62-pay-here b,
+.pos-full-v76 .pos-v62-send-cashier b{
+  color:inherit!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-pay-here span,
+.pos-full-v76 .pos-v62-send-cashier span{
+  color:inherit!important;
+  font-weight:700!important;
+}
+.pos-full-v76 .pos-v62-pay-here:disabled,
+.pos-full-v76 .pos-v62-send-cashier:disabled{
+  opacity:.72!important;
+  filter:saturate(.9);
+}
+.pos-full-v76 #holdSaleBtn{
+  background:linear-gradient(135deg,#8d34e8,#6c20cf)!important;
+  color:#fff!important;
+  border:0!important;
+  font-weight:900!important;
+}
+.pos-full-v76 #recallHeldBtn{
+  background:#dff2ff!important;
+  color:#0b62bd!important;
+  border:1px solid #c4e5fb!important;
+  font-weight:900!important;
+}
+.pos-full-v76 #printBtn{
+  background:#edf3f8!important;
+  color:#17345e!important;
+  border:1px solid #d8e3ec!important;
+  font-weight:900!important;
+}
+.pos-full-v76 .pos-v62-secondary-actions>span{
+  color:#526d91!important;
+  font-weight:700;
+}
+.pos-full-v76 .pos-v62-quick-actions button{
+  font-weight:900;
+  border-width:1px!important;
+  box-shadow:none!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button:nth-child(1){
+  background:#e4f4ff!important;
+  color:#0870dc!important;
+  border-color:#c8e5fa!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button:nth-child(2){
+  background:#e9faee!important;
+  color:#138f3e!important;
+  border-color:#ceefd7!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button:nth-child(3){
+  background:#f1e7ff!important;
+  color:#6521bc!important;
+  border-color:#dfcdf8!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button:nth-child(4){
+  background:#fff0df!important;
+  color:#e15b00!important;
+  border-color:#f8d9b5!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button:nth-child(5){
+  background:#ffe8e8!important;
+  color:#c12222!important;
+  border-color:#f6caca!important;
+}
+.pos-full-v76 .pos-v62-quick-actions button b{
+  color:inherit!important;
+}
+.pos-full-v76 .sync-pill{
+  color:#294768!important;
+  font-weight:850;
+}
