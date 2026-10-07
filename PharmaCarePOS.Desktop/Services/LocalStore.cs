@@ -183,13 +183,21 @@ public sealed class LocalStore
             await cmd.ExecuteNonQueryAsync();
         }
 
-        var allBatches = await GetBatchesAsync();
-
         foreach (var line in sale.Lines)
         {
-            var batch = allBatches.FirstOrDefault(x => x.Id == line.BatchId);
-            if (batch is null) continue;
+            BatchDto? batch = null;
 
+            await using (var read = db.CreateCommand())
+            {
+                read.Transaction = (SqliteTransaction)tx;
+                read.CommandText = "SELECT json FROM batches WHERE id=$id;";
+                read.Parameters.AddWithValue("$id", line.BatchId);
+                var json = await read.ExecuteScalarAsync() as string;
+                if (!string.IsNullOrWhiteSpace(json))
+                    batch = JsonSerializer.Deserialize<BatchDto>(json);
+            }
+
+            if (batch is null) continue;
             batch.Quantity = Math.Max(0, batch.Quantity - line.Quantity);
 
             await using var update = db.CreateCommand();
