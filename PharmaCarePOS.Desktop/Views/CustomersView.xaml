@@ -2,16 +2,37 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <Grid>
-  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <TextBlock Text="Customers / Patients" FontSize="28" FontWeight="Bold" Margin="0,0,0,10"/>
-  <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+
+  <StackPanel Margin="0,0,0,14">
+   <TextBlock Text="Customers" Style="{StaticResource PageTitle}"/>
+   <TextBlock Text="Customer and patient directory." Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
+  </StackPanel>
+
+  <Border Grid.Row="1" Style="{StaticResource CardBorder}" Padding="10" Margin="0,0,0,12">
+   <Grid>
+    <StackPanel Orientation="Horizontal">
+     <Button Content="+ New Customer" Style="{StaticResource PrimaryButton}" IsEnabled="False"/>
+     <Button Content="Edit" Style="{StaticResource SecondaryButton}" IsEnabled="False"/>
+     <Button Content="Delete" Style="{StaticResource DangerButton}" IsEnabled="False"/>
+    </StackPanel>
+    <Border HorizontalAlignment="Right" Width="330" Height="38" BorderBrush="#C9D9E6" BorderThickness="1" CornerRadius="7">
+     <Grid>
+      <TextBlock Text="⌕" FontSize="18" Foreground="#71889A" Margin="10,0,0,0" VerticalAlignment="Center"/>
+      <TextBox Margin="32,0,0,0" BorderThickness="0" Background="Transparent" ToolTip="Search customers"/>
+     </Grid>
+    </Border>
+   </Grid>
+  </Border>
+
+  <Border Grid.Row="2" Style="{StaticResource CardBorder}" Padding="0">
    <DataGrid x:Name="Grid">
     <DataGrid.Columns>
      <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="80"/>
      <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*"/>
-     <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="*"/>
-     <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="1.5*"/>
-     <DataGridTextColumn Header="Allergies" Binding="{Binding Allergies}" Width="1.5*"/>
+     <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="1.2*"/>
+     <DataGridTextColumn Header="Email" Binding="{Binding Email}" Width="1.8*"/>
+     <DataGridTextColumn Header="Allergies / Notes" Binding="{Binding Allergies}" Width="1.5*"/>
     </DataGrid.Columns>
    </DataGrid>
   </Border>
