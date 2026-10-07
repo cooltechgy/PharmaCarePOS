@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmaCarePOS", "PharmaCarePOS.csproj", "{6B9D02CD-7E94-4FCF-8D3B-A01293F91570}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmaCarePOS.Desktop", "PharmaCarePOS.Desktop\\PharmaCarePOS.Desktop.csproj", "{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,5 +16,9 @@ Global
 		{6B9D02CD-7E94-4FCF-8D3B-A01293F91570}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6B9D02CD-7E94-4FCF-8D3B-A01293F91570}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6B9D02CD-7E94-4FCF-8D3B-A01293F91570}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
