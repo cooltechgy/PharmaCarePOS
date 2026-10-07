@@ -3,37 +3,47 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <Grid Margin="0,0,0,10">
-   <StackPanel><TextBlock Text="Cashier" FontSize="28" FontWeight="Bold"/><TextBlock Text="Complete pending POS payments." Foreground="{StaticResource MutedBrush}"/></StackPanel>
-   <Button Content="Refresh" HorizontalAlignment="Right" Click="Refresh_Click"/>
+
+  <Grid Margin="0,0,0,14">
+   <StackPanel>
+    <TextBlock Text="Cashier" Style="{StaticResource PageTitle}"/>
+    <TextBlock Text="Complete pending POS payments." Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
+   </StackPanel>
+   <Button Content="Refresh" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Click="Refresh_Click"/>
   </Grid>
+
   <Grid Grid.Row="1">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*"/><ColumnDefinition Width=".8*"/></Grid.ColumnDefinitions>
-   <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Margin="0,0,7,0" Padding="10">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="1.5*"/><ColumnDefinition Width=".7*"/></Grid.ColumnDefinitions>
+
+   <Border Style="{StaticResource CardBorder}" Margin="0,0,8,0" Padding="0">
     <DataGrid x:Name="Grid" SelectionChanged="Grid_SelectionChanged">
      <DataGrid.Columns>
-      <DataGridTextColumn Header="Invoice" Binding="{Binding InvoiceNo}" Width="1.5*"/>
-      <DataGridTextColumn Header="Customer" Binding="{Binding CustomerName}" Width="1.7*"/>
+      <DataGridTextColumn Header="Invoice" Binding="{Binding InvoiceNo}" Width="1.3*"/>
+      <DataGridTextColumn Header="Customer" Binding="{Binding CustomerName}" Width="1.6*"/>
       <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C}" Width="*"/>
       <DataGridTextColumn Header="Method" Binding="{Binding SuggestedPaymentMethod}" Width="*"/>
       <DataGridTextColumn Header="Status" Binding="{Binding PaymentStatus}" Width="*"/>
      </DataGrid.Columns>
     </DataGrid>
    </Border>
-   <Border Grid.Column="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Margin="7,0,0,0" Padding="18">
+
+   <Border Grid.Column="1" Style="{StaticResource CardBorder}" Margin="8,0,0,0">
     <StackPanel>
-     <TextBlock Text="Payment Details" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="Customer" Margin="0,22,0,3" Foreground="{StaticResource MutedBrush}"/>
-     <TextBlock x:Name="CustomerText" FontSize="18" FontWeight="Bold"/>
-     <TextBlock Text="Invoice" Margin="0,14,0,3" Foreground="{StaticResource MutedBrush}"/>
-     <TextBlock x:Name="InvoiceText" FontSize="18" FontWeight="Bold"/>
-     <TextBlock Text="Total Due" Margin="0,14,0,3" Foreground="{StaticResource MutedBrush}"/>
+     <TextBlock Text="Payment Details" Style="{StaticResource SectionTitle}"/>
+     <TextBlock Text="Customer" Margin="0,20,0,4" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+     <TextBlock x:Name="CustomerText" FontSize="17" FontWeight="SemiBold"/>
+     <TextBlock Text="Invoice" Margin="0,14,0,4" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
+     <TextBlock x:Name="InvoiceText" FontSize="17" FontWeight="SemiBold"/>
+     <TextBlock Text="Total Due" Margin="0,18,0,4" Foreground="{StaticResource MutedBrush}" FontSize="11"/>
      <TextBlock x:Name="TotalText" FontSize="30" FontWeight="Bold" Foreground="#075BCB"/>
-     <TextBlock Text="Payment Method" Margin="0,24,0,6" FontWeight="Bold"/>
-     <ComboBox x:Name="MethodBox" SelectedIndex="0" Height="38">
-      <ComboBoxItem Content="Cash"/><ComboBoxItem Content="Card"/><ComboBoxItem Content="UPI"/><ComboBoxItem Content="Split"/>
+     <TextBlock Text="Payment Method" Margin="0,24,0,5" FontWeight="SemiBold"/>
+     <ComboBox x:Name="MethodBox" SelectedIndex="0" Height="40">
+      <ComboBoxItem Content="Cash"/>
+      <ComboBoxItem Content="Card"/>
+      <ComboBoxItem Content="UPI"/>
+      <ComboBoxItem Content="Split"/>
      </ComboBox>
-     <Button Content="Confirm Payment" Style="{StaticResource GreenButton}" Height="52" Margin="0,20,0,0" Click="Confirm_Click"/>
+     <Button Content="Confirm Payment" Style="{StaticResource GreenButton}" Height="48" Margin="0,20,0,0" Click="Confirm_Click"/>
     </StackPanel>
    </Border>
   </Grid>
