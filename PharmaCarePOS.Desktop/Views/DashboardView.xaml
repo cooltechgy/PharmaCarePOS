@@ -3,17 +3,133 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <ScrollViewer VerticalScrollBarVisibility="Auto">
   <StackPanel>
-   <TextBlock Text="Dashboard" FontSize="28" FontWeight="Bold"/>
-   <TextBlock Text="Desktop overview of today's pharmacy activity." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,14"/>
-   <UniformGrid Columns="4" Margin="0,0,0,14">
-    <Border Background="#EAF9EF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Sales Today" Foreground="#3A7A55"/><TextBlock x:Name="SalesTodayText" Text="$0.00" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
-    <Border Background="#EAF4FF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Orders Today" Foreground="#356C9B"/><TextBlock x:Name="SalesCountText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
-    <Border Background="#FFECEC" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Low Stock" Foreground="#A54444"/><TextBlock x:Name="LowStockText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
-    <Border Background="#FFF4DF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Expiry Soon" Foreground="#A36C20"/><TextBlock x:Name="ExpiryText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
+   <Grid Margin="0,0,0,16">
+    <StackPanel>
+     <TextBlock Text="Dashboard" Style="{StaticResource PageTitle}"/>
+     <TextBlock Text="Overview of today's pharmacy activity." Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0"/>
+    </StackPanel>
+    <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12,7">
+     <TextBlock Text="Today" Foreground="#516B83" FontWeight="SemiBold"/>
+    </Border>
+   </Grid>
+
+   <UniformGrid Columns="4" Margin="-5,0,-5,16">
+    <Border Background="#ECF9F0" CornerRadius="10" Padding="16" Margin="5">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Width="42" Height="42" CornerRadius="10" Background="#CFF2DA" Margin="0,0,12,0">
+       <TextBlock Text="$" Foreground="#139250" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1">
+       <TextBlock Text="Total Sales (Today)" Foreground="#4D725C" FontSize="11"/>
+       <TextBlock x:Name="SalesTodayText" Text="$0.00" FontSize="23" FontWeight="Bold" Margin="0,3,0,0"/>
+      </StackPanel>
+     </Grid>
+    </Border>
+
+    <Border Background="#EAF4FF" CornerRadius="10" Padding="16" Margin="5">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Width="42" Height="42" CornerRadius="10" Background="#D5E8FD" Margin="0,0,12,0">
+       <TextBlock Text="▣" Foreground="#0C74E8" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1">
+       <TextBlock Text="Total Orders" Foreground="#4E6F92" FontSize="11"/>
+       <TextBlock x:Name="SalesCountText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,3,0,0"/>
+      </StackPanel>
+     </Grid>
+    </Border>
+
+    <Border Background="#FFF0F1" CornerRadius="10" Padding="16" Margin="5">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Width="42" Height="42" CornerRadius="10" Background="#FFD9DD" Margin="0,0,12,0">
+       <TextBlock Text="!" Foreground="#E83C4C" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1">
+       <TextBlock Text="Low Stock Items" Foreground="#8F535A" FontSize="11"/>
+       <TextBlock x:Name="LowStockText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,3,0,0"/>
+      </StackPanel>
+     </Grid>
+    </Border>
+
+    <Border Background="#FFF5E7" CornerRadius="10" Padding="16" Margin="5">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Border Width="42" Height="42" CornerRadius="10" Background="#FFE6B9" Margin="0,0,12,0">
+       <TextBlock Text="⏱" Foreground="#D88411" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <StackPanel Grid.Column="1">
+       <TextBlock Text="Expiry Soon" Foreground="#8F6A31" FontSize="11"/>
+       <TextBlock x:Name="ExpiryText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,3,0,0"/>
+      </StackPanel>
+     </Grid>
+    </Border>
    </UniformGrid>
-   <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18">
-    <StackPanel><TextBlock Text="Desktop Sync Status" FontSize="18" FontWeight="Bold"/><TextBlock x:Name="SyncStatusText" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel>
-   </Border>
+
+   <Grid>
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition Width="1.55*"/>
+     <ColumnDefinition Width=".85*"/>
+    </Grid.ColumnDefinitions>
+
+    <Border Style="{StaticResource CardBorder}" Margin="0,0,8,0" MinHeight="320">
+     <Grid>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Grid>
+       <TextBlock Text="Sales Overview (Last 7 Days)" Style="{StaticResource SectionTitle}"/>
+       <Border HorizontalAlignment="Right" Background="#F5F8FB" CornerRadius="6" Padding="9,5">
+        <TextBlock Text="Last 7 Days" FontSize="11" Foreground="#60778D"/>
+       </Border>
+      </Grid>
+      <Grid Grid.Row="1" Margin="0,18,0,0">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+       </Grid.RowDefinitions>
+       <Canvas Height="190" ClipToBounds="True">
+        <Line X1="35" X2="700" Y1="35" Y2="35" Stroke="#E7EEF4"/>
+        <Line X1="35" X2="700" Y1="80" Y2="80" Stroke="#E7EEF4"/>
+        <Line X1="35" X2="700" Y1="125" Y2="125" Stroke="#E7EEF4"/>
+        <Line X1="35" X2="700" Y1="170" Y2="170" Stroke="#E7EEF4"/>
+        <Polyline Points="38,145 145,132 250,105 355,94 460,119 565,92 675,108"
+                  Stroke="#087FF5" StrokeThickness="3" Fill="Transparent"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="34" Canvas.Top="141"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="141" Canvas.Top="128"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="246" Canvas.Top="101"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="351" Canvas.Top="90"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="456" Canvas.Top="115"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="561" Canvas.Top="88"/>
+        <Ellipse Width="8" Height="8" Fill="#087FF5" Canvas.Left="671" Canvas.Top="104"/>
+       </Canvas>
+       <UniformGrid Grid.Row="1" Columns="7" Margin="24,0,12,0">
+        <TextBlock Text="Mon" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Tue" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Wed" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Thu" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Fri" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Sat" Foreground="#71869A" HorizontalAlignment="Center"/>
+        <TextBlock Text="Sun" Foreground="#71869A" HorizontalAlignment="Center"/>
+       </UniformGrid>
+      </Grid>
+     </Grid>
+    </Border>
+
+    <StackPanel Grid.Column="1" Margin="8,0,0,0">
+     <Border Style="{StaticResource CardBorder}" Margin="0,0,0,12">
+      <StackPanel>
+       <TextBlock Text="System Status" Style="{StaticResource SectionTitle}"/>
+       <TextBlock x:Name="SyncStatusText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#587187" LineHeight="20"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#073B63" CornerRadius="10" Padding="18">
+      <StackPanel>
+       <TextBlock Text="Quick Start" Foreground="White" FontSize="17" FontWeight="SemiBold"/>
+       <TextBlock Text="Use POS Sales to scan products and create a sale. Offline sales are queued automatically." Foreground="#C7DEEE" TextWrapping="Wrap" Margin="0,8,0,0" LineHeight="19"/>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+   </Grid>
   </StackPanel>
  </ScrollViewer>
 </UserControl>
