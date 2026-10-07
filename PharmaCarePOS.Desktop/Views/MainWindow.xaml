@@ -1,0 +1,50 @@
+<Window x:Class="PharmaCarePOS.Desktop.Views.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="PharmaCare POS Desktop" Width="1450" Height="900"
+ WindowStartupLocation="CenterScreen">
+ <Grid>
+  <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+  <Grid.RowDefinitions><RowDefinition Height="68"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <Border Grid.RowSpan="2" Background="#0B4368">
+   <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="74"/><RowDefinition Height="*"/><RowDefinition Height="76"/></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
+     <Border Width="36" Height="36" Background="#20C775" CornerRadius="9">
+      <TextBlock Text="✚" Foreground="White" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+     </Border>
+     <TextBlock Text="PharmaCare&#x0a;POS" Foreground="White" FontSize="18" FontWeight="Bold" Margin="10,0,0,0"/>
+    </StackPanel>
+    <StackPanel Grid.Row="1" Margin="10,5">
+     <Button Content="⌂  Dashboard" Tag="Dashboard" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="🛒  POS Sales" Tag="POS" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="💵  Cashier" Tag="Cashier" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="💊  Products" Tag="Products" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="▣  Purchase" Tag="Purchase" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="▤  Stock" Tag="Stock" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="⏰  Expiry Stock" Tag="Expiry" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="👥  Customers" Tag="Customers" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="📊  Reports" Tag="Reports" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="🛡  Users &amp; Roles" Tag="Users" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+     <Button Content="⚙  Settings" Tag="Settings" Click="Nav_Click" HorizontalContentAlignment="Left"/>
+    </StackPanel>
+    <StackPanel Grid.Row="2" Margin="18,8">
+     <TextBlock Text="Offline-first WPF Desktop" Foreground="#BBD6E7" FontSize="11"/>
+     <TextBlock Text="v7.7 Desktop" Foreground="White" FontWeight="Bold"/>
+    </StackPanel>
+   </Grid>
+  </Border>
+  <Border Grid.Column="1" Background="#0F668F">
+   <Grid Margin="18,0">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBox Width="520" Height="38" HorizontalAlignment="Left" VerticalAlignment="Center" Text="Search medicine, customer, invoice..." Foreground="#7F91A3"/>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+     <Border Background="#1B789F" CornerRadius="8" Padding="10,7" Margin="4"><TextBlock x:Name="ConnectionText" Foreground="White" FontWeight="SemiBold"/></Border>
+     <Border Background="#1B789F" CornerRadius="8" Padding="10,7" Margin="4"><TextBlock x:Name="UserText" Foreground="White"/></Border>
+     <Button Content="Logout" Click="Logout_Click"/>
+    </StackPanel>
+   </Grid>
+  </Border>
+  <ContentControl x:Name="MainContent" Grid.Column="1" Grid.Row="1" Margin="12"/>
+ </Grid>
+</Window>

@@ -1,0 +1,18 @@
+<UserControl x:Class="PharmaCarePOS.Desktop.Views.ExpiryView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <TextBlock Text="Expiry Stock" FontSize="28" FontWeight="Bold" Margin="0,0,0,10"/>
+  <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10">
+   <DataGrid x:Name="Grid">
+    <DataGrid.Columns>
+     <DataGridTextColumn Header="Batch" Binding="{Binding BatchNo}" Width="*"/>
+     <DataGridTextColumn Header="Product ID" Binding="{Binding ProductId}" Width="*"/>
+     <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat=d}" Width="*"/>
+     <DataGridTextColumn Header="Quantity" Binding="{Binding Quantity}" Width="*"/>
+    </DataGrid.Columns>
+   </DataGrid>
+  </Border>
+ </Grid>
+</UserControl>

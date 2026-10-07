@@ -1,0 +1,19 @@
+<UserControl x:Class="PharmaCarePOS.Desktop.Views.DashboardView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <StackPanel>
+   <TextBlock Text="Dashboard" FontSize="28" FontWeight="Bold"/>
+   <TextBlock Text="Desktop overview of today's pharmacy activity." Foreground="{StaticResource MutedBrush}" Margin="0,4,0,14"/>
+   <UniformGrid Columns="4" Margin="0,0,0,14">
+    <Border Background="#EAF9EF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Sales Today" Foreground="#3A7A55"/><TextBlock x:Name="SalesTodayText" Text="$0.00" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
+    <Border Background="#EAF4FF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Orders Today" Foreground="#356C9B"/><TextBlock x:Name="SalesCountText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
+    <Border Background="#FFECEC" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Low Stock" Foreground="#A54444"/><TextBlock x:Name="LowStockText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
+    <Border Background="#FFF4DF" CornerRadius="10" Padding="18" Margin="4"><StackPanel><TextBlock Text="Expiry Soon" Foreground="#A36C20"/><TextBlock x:Name="ExpiryText" Text="0" FontSize="25" FontWeight="Bold"/></StackPanel></Border>
+   </UniformGrid>
+   <Border Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18">
+    <StackPanel><TextBlock Text="Desktop Sync Status" FontSize="18" FontWeight="Bold"/><TextBlock x:Name="SyncStatusText" Margin="0,8,0,0" TextWrapping="Wrap"/></StackPanel>
+   </Border>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

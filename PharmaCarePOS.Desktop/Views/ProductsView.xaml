@@ -1,0 +1,24 @@
+<UserControl x:Class="PharmaCarePOS.Desktop.Views.ProductsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <Grid Margin="0,0,0,10">
+   <TextBlock Text="Products" FontSize="28" FontWeight="Bold"/>
+   <TextBox x:Name="SearchBox" Width="340" HorizontalAlignment="Right" TextChanged="SearchBox_TextChanged" ToolTip="Search products"/>
+  </Grid>
+  <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="10">
+   <DataGrid x:Name="Grid">
+    <DataGrid.Columns>
+     <DataGridTextColumn Header="Product" Binding="{Binding Name}" Width="2*"/>
+     <DataGridTextColumn Header="Generic" Binding="{Binding GenericName}" Width="1.6*"/>
+     <DataGridTextColumn Header="Strength" Binding="{Binding Strength}" Width="*"/>
+     <DataGridTextColumn Header="Form" Binding="{Binding DosageForm}" Width="*"/>
+     <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*"/>
+     <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="1.4*"/>
+     <DataGridTextColumn Header="Price" Binding="{Binding SellingPrice, StringFormat=C}" Width="*"/>
+    </DataGrid.Columns>
+   </DataGrid>
+  </Border>
+ </Grid>
+</UserControl>
