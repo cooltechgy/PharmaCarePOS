@@ -1,50 +1,97 @@
 <Window x:Class="PharmaCarePOS.Desktop.Views.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="PharmaCare POS Desktop" Width="1450" Height="900"
- WindowStartupLocation="CenterScreen">
- <Grid>
-  <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-  <Grid.RowDefinitions><RowDefinition Height="68"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <Border Grid.RowSpan="2" Background="#0B4368">
+ Title="PharmaCare POS Desktop" Width="1480" Height="900"
+ MinWidth="1180" MinHeight="720" WindowStartupLocation="CenterScreen">
+ <Grid Background="{StaticResource PageBrush}">
+  <Grid.ColumnDefinitions>
+   <ColumnDefinition Width="205"/>
+   <ColumnDefinition Width="*"/>
+  </Grid.ColumnDefinitions>
+  <Grid.RowDefinitions>
+   <RowDefinition Height="64"/>
+   <RowDefinition Height="*"/>
+  </Grid.RowDefinitions>
+
+  <Border Grid.RowSpan="2" Background="{StaticResource NavyDarkBrush}">
    <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="74"/><RowDefinition Height="*"/><RowDefinition Height="76"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions>
+     <RowDefinition Height="78"/>
+     <RowDefinition Height="*"/>
+     <RowDefinition Height="78"/>
+    </Grid.RowDefinitions>
+
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
-     <Border Width="36" Height="36" Background="#20C775" CornerRadius="9">
-      <TextBlock Text="✚" Foreground="White" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+     <Border Width="38" Height="38" Background="#16B867" CornerRadius="9">
+      <TextBlock Text="✚" Foreground="White" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
      </Border>
-     <TextBlock Text="PharmaCare&#x0a;POS" Foreground="White" FontSize="18" FontWeight="Bold" Margin="10,0,0,0"/>
+     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+      <TextBlock Text="PharmaCare" Foreground="White" FontSize="16" FontWeight="Bold"/>
+      <TextBlock Text="POS" Foreground="#9EC5DF" FontSize="11" FontWeight="SemiBold"/>
+     </StackPanel>
     </StackPanel>
-    <StackPanel Grid.Row="1" Margin="10,5">
-     <Button Content="⌂  Dashboard" Tag="Dashboard" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="🛒  POS Sales" Tag="POS" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="💵  Cashier" Tag="Cashier" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="💊  Products" Tag="Products" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="▣  Purchase" Tag="Purchase" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="▤  Stock" Tag="Stock" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="⏰  Expiry Stock" Tag="Expiry" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="👥  Customers" Tag="Customers" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="📊  Reports" Tag="Reports" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="🛡  Users &amp; Roles" Tag="Users" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-     <Button Content="⚙  Settings" Tag="Settings" Click="Nav_Click" HorizontalContentAlignment="Left"/>
-    </StackPanel>
-    <StackPanel Grid.Row="2" Margin="18,8">
-     <TextBlock Text="Offline-first WPF Desktop" Foreground="#BBD6E7" FontSize="11"/>
-     <TextBlock Text="v7.7 Desktop" Foreground="White" FontWeight="Bold"/>
-    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+     <StackPanel Margin="0,4,0,8">
+      <TextBlock Text="WORKSPACE" Foreground="#6E9AB8" FontSize="10" FontWeight="Bold" Margin="20,4,0,5"/>
+      <Button Content="⌂   Dashboard" Tag="Dashboard" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="🛒   POS Sales" Tag="POS" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="💵   Cashier" Tag="Cashier" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <TextBlock Text="INVENTORY" Foreground="#6E9AB8" FontSize="10" FontWeight="Bold" Margin="20,14,0,5"/>
+      <Button Content="💊   Products" Tag="Products" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="▣   Purchase" Tag="Purchase" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="▤   Stock" Tag="Stock" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="⏰   Expiry Stock" Tag="Expiry" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="👥   Customers" Tag="Customers" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <TextBlock Text="ADMIN" Foreground="#6E9AB8" FontSize="10" FontWeight="Bold" Margin="20,14,0,5"/>
+      <Button Content="📊   Reports" Tag="Reports" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="🛡   Users &amp; Roles" Tag="Users" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+      <Button Content="⚙   Settings" Tag="Settings" Click="Nav_Click" Style="{StaticResource SidebarButton}"/>
+     </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2" BorderBrush="#174D73" BorderThickness="0,1,0,0" Padding="18,11">
+     <StackPanel>
+      <TextBlock Text="PharmaCare POS" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+      <TextBlock Text="Desktop • Offline ready" Foreground="#8FB5CE" FontSize="10" Margin="0,3,0,0"/>
+     </StackPanel>
+    </Border>
    </Grid>
   </Border>
-  <Border Grid.Column="1" Background="#0F668F">
-   <Grid Margin="18,0">
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <TextBox Width="520" Height="38" HorizontalAlignment="Left" VerticalAlignment="Center" Text="Search medicine, customer, invoice..." Foreground="#7F91A3"/>
+
+  <Border Grid.Column="1" Background="White" BorderBrush="#E1EAF1" BorderThickness="0,0,0,1">
+   <Grid Margin="20,0">
+    <Grid.ColumnDefinitions>
+     <ColumnDefinition Width="*"/>
+     <ColumnDefinition Width="Auto"/>
+    </Grid.ColumnDefinitions>
+
+    <Border Width="500" Height="38" HorizontalAlignment="Left" VerticalAlignment="Center"
+            Background="#F5F8FB" BorderBrush="#DDE7EF" BorderThickness="1" CornerRadius="8">
+     <Grid>
+      <TextBlock Text="⌕" FontSize="20" Foreground="#72879B" Margin="12,0,0,0" VerticalAlignment="Center"/>
+      <TextBox Margin="36,0,0,0" BorderThickness="0" Background="Transparent"
+               Text="Search products, customers, or invoices..." Foreground="#8295A7"/>
+     </Grid>
+    </Border>
+
     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-     <Border Background="#1B789F" CornerRadius="8" Padding="10,7" Margin="4"><TextBlock x:Name="ConnectionText" Foreground="White" FontWeight="SemiBold"/></Border>
-     <Border Background="#1B789F" CornerRadius="8" Padding="10,7" Margin="4"><TextBlock x:Name="UserText" Foreground="White"/></Border>
-     <Button Content="Logout" Click="Logout_Click"/>
+     <Border Background="#F5F8FB" BorderBrush="#DFE8F0" BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="4">
+      <TextBlock x:Name="ConnectionText" Foreground="{StaticResource TextBrush}" FontSize="12" FontWeight="SemiBold"/>
+     </Border>
+     <Border Background="#F5F8FB" BorderBrush="#DFE8F0" BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="4">
+      <StackPanel Orientation="Horizontal">
+       <Border Width="24" Height="24" CornerRadius="12" Background="#DCEBFA" Margin="0,0,7,0">
+        <TextBlock Text="●" Foreground="#6B8DA8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+       </Border>
+       <TextBlock x:Name="UserText" VerticalAlignment="Center" Foreground="{StaticResource TextBrush}" FontSize="12"/>
+      </StackPanel>
+     </Border>
+     <Button Content="Logout" Click="Logout_Click" Style="{StaticResource SecondaryButton}" Margin="6,0,0,0"/>
     </StackPanel>
    </Grid>
   </Border>
-  <ContentControl x:Name="MainContent" Grid.Column="1" Grid.Row="1" Margin="12"/>
+
+  <ContentControl x:Name="MainContent" Grid.Column="1" Grid.Row="1" Margin="18"/>
  </Grid>
 </Window>
