@@ -1,0 +1,15 @@
+@page "/users"
+@inject ApiClient Api
+@inject SessionState Session
+<PageTitle>Users & Roles - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Users &amp; Roles</h1><p>Manage pharmacy staff accounts.</p></div><button class="btn btn-primary" @onclick="NewUser">+ New User</button></div>
+@if(showForm){<div class="page-card form-card modal-inline"><div class="form-grid"><label>Display Name<input @bind="form.DisplayName"/></label><label>Username<input @bind="form.Username"/></label><label>Password<input type="password" @bind="form.Password"/></label><label>Role<select @bind="form.Role"><option>Admin</option><option>Pharmacist</option><option>Cashier</option><option>Inventory</option><option>Viewer</option></select></label><label>Branch<select @bind="form.BranchId">@foreach(var b in branches){<option value="@b.Id">@b.Name</option>}</select></label></div><div class="form-actions"><button class="btn btn-primary" @onclick="SaveAsync">Create User</button><button class="btn btn-light" @onclick="()=>showForm=false">Cancel</button></div></div>}
+<div class="page-card table-card"><div class="table-wrap"><table><thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Branch</th></tr></thead><tbody>
+@foreach(var x in users){<tr><td><strong>@x.Username</strong></td><td>@x.DisplayName</td><td><span class="badge badge-blue">@x.Role</span></td><td>@branches.FirstOrDefault(b=>b.Id==x.BranchId)?.Name</td></tr>}
+</tbody></table></div></div>
+@code{
+private List<UserDto> users=[];private List<BranchDto> branches=[];private UserCreateRequest form=new();private bool showForm;
+protected override async Task OnInitializedAsync(){if(Session.Current is null)return;users=await Api.UsersAsync(Session.Current.TenantId);branches=await Api.BranchesAsync(Session.Current.TenantId);}
+private void NewUser(){if(Session.Current is null)return;form=new UserCreateRequest{TenantId=Session.Current.TenantId,BranchId=branches.FirstOrDefault()?.Id??Session.Current.BranchId,Role="Cashier"};showForm=true;}
+private async Task SaveAsync(){await Api.CreateUserAsync(form);showForm=false;if(Session.Current is not null)users=await Api.UsersAsync(Session.Current.TenantId);}
+}
