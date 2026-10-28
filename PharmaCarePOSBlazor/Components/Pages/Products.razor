@@ -1,0 +1,38 @@
+@page "/products"
+@inject ApiClient Api
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<PageTitle>Products - PharmaCare POS</PageTitle>
+
+<div class="page-heading"><div><h1>Products</h1><p>Manage medicines, pricing and product details.</p></div></div>
+<div class="toolbar page-card compact">
+    <button class="btn btn-primary" @onclick="() => Nav.NavigateTo("/products/edit")">+ Add Product</button>
+    <button class="btn btn-light" disabled="@(selected is null)" @onclick="EditSelected">Edit</button>
+    <input class="search-input right" @bind="search" @bind:event="oninput" placeholder="Search products..." />
+</div>
+<div class="page-card table-card">
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Code</th><th>Product</th><th>Strength</th><th>Form</th><th>Category</th><th>Price</th></tr></thead>
+            <tbody>
+            @foreach (var p in Filtered)
+            {
+                <tr class="@(selected?.Id == p.Id ? "selected" : "")" @onclick="() => selected=p">
+                    <td>P@(p.Id.ToString("D4"))</td><td><strong>@p.Name</strong><small class="table-sub">@p.GenericName</small></td>
+                    <td>@p.Strength</td><td>@p.DosageForm</td><td>@p.Category</td><td>@p.SellingPrice.ToString("C")</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<ProductDto> products=[];
+    private ProductDto? selected;
+    private string search="";
+    private IEnumerable<ProductDto> Filtered => products.Where(x => string.IsNullOrWhiteSpace(search) || x.Name.Contains(search,StringComparison.OrdinalIgnoreCase) || x.GenericName.Contains(search,StringComparison.OrdinalIgnoreCase));
+    protected override async Task OnInitializedAsync() { if(Session.Current is not null) products=await Api.ProductsAsync(Session.Current.TenantId); }
+    private void EditSelected() { if(selected is not null) Nav.NavigateTo($"/products/edit/{selected.Id}"); }
+}
