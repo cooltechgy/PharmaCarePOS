@@ -1,0 +1,127 @@
+@page "/pos"
+@inject ApiClient Api
+@inject SessionState Session
+
+<PageTitle>POS Sales - PharmaCare POS</PageTitle>
+
+<div class="page-heading">
+    <div><h1>POS Sales</h1><p>Search products, select a live batch, and complete the sale.</p></div>
+    <span class="badge badge-green">Online API</span>
+</div>
+
+<div class="pos-grid">
+    <section class="page-card">
+        <div class="card-title-row"><h3>Product Search</h3><span>Click Add</span></div>
+        <div class="toolbar">
+            <input class="search-input" @bind="search" @bind:event="oninput" placeholder="Search product, generic, barcode..." />
+            <button class="btn btn-light" @onclick="LoadAsync">Refresh</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Product</th><th>Strength</th><th>Form</th><th>Stock</th><th>Price</th><th></th></tr></thead>
+                <tbody>
+                @foreach (var p in FilteredProducts)
+                {
+                    var batches = stock.Where(x => x.ProductId == p.Id && x.Quantity > 0 && x.ExpiryDate.Date >= DateTime.Today).OrderBy(x => x.ExpiryDate).ToList();
+                    var qty = batches.Sum(x => x.Quantity);
+                    <tr>
+                        <td><strong>@p.Name</strong><small class="table-sub">@p.GenericName</small></td>
+                        <td>@p.Strength</td>
+                        <td>@p.DosageForm</td>
+                        <td class="@(qty <= 10 ? "text-red" : "text-green")">@qty</td>
+                        <td>@p.SellingPrice.ToString("C")</td>
+                        <td><button class="btn btn-primary btn-sm" disabled="@(batches.Count == 0)" @onclick="() => Add(p, batches)">Add</button></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <aside class="page-card cart-card">
+        <div class="card-title-row"><h3>Cart (@cart.Count)</h3><button class="btn btn-danger btn-sm" @onclick="Clear">Clear Cart</button></div>
+        <div class="cart-list">
+            @if (cart.Count == 0)
+            {
+                <div class="empty-state">Cart is empty</div>
+            }
+            @foreach (var line in cart)
+            {
+                <div class="cart-line">
+                    <div><strong>@line.ProductName</strong><small>@line.BatchNo</small></div>
+                    <div class="qty-controls">
+                        <button @onclick="() => ChangeQty(line,-1)">−</button>
+                        <span>@line.Quantity</span>
+                        <button @onclick="() => ChangeQty(line,1)">+</button>
+                    </div>
+                    <strong>@line.Total.ToString("C")</strong>
+                </div>
+            }
+        </div>
+        <div class="cart-total"><span>Total</span><strong>@CartTotal.ToString("C")</strong></div>
+        @if (!string.IsNullOrWhiteSpace(message)) { <div class="alert">@message</div> }
+        <button class="btn btn-success btn-block" disabled="@(cart.Count == 0 || busy)" @onclick="() => PayAsync(false)">Pay Here</button>
+        <button class="btn btn-warning btn-block" disabled="@(cart.Count == 0 || busy)" @onclick="() => PayAsync(true)">Send to Cashier</button>
+    </aside>
+</div>
+
+@code {
+    private List<ProductDto> products = [];
+    private List<StockRow> stock = [];
+    private List<CartLine> cart = [];
+    private string search = "";
+    private string message = "";
+    private bool busy;
+    private decimal CartTotal => cart.Sum(x => x.Total);
+
+    private IEnumerable<ProductDto> FilteredProducts => products.Where(p =>
+        string.IsNullOrWhiteSpace(search) ||
+        p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+        p.GenericName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+        p.Barcode.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        if (Session.Current is null) return;
+        products = await Api.ProductsAsync(Session.Current.TenantId);
+        stock = await Api.StockAsync(Session.Current);
+    }
+
+    private void Add(ProductDto p, List<StockRow> batches)
+    {
+        var batch = batches.First();
+        var existing = cart.FirstOrDefault(x => x.BatchId == batch.Id);
+        if (existing is null)
+            cart.Add(new CartLine { ProductId=p.Id, BatchId=batch.Id, ProductName=p.Name, BatchNo=batch.BatchNo, MaxQty=batch.Quantity, UnitPrice=batch.SellingPrice, Quantity=1 });
+        else if (existing.Quantity < existing.MaxQty) existing.Quantity++;
+    }
+
+    private void ChangeQty(CartLine line, int delta)
+    {
+        line.Quantity = Math.Clamp(line.Quantity + delta, 0, line.MaxQty);
+        if (line.Quantity <= 0) cart.Remove(line);
+    }
+
+    private void Clear() => cart.Clear();
+
+    private async Task PayAsync(bool cashier)
+    {
+        if (Session.Current is null || cart.Count == 0) return;
+        busy = true; message = "";
+        try
+        {
+            await Api.SubmitSaleAsync(new SaleRequestDto {
+                TenantId=Session.Current.TenantId, BranchId=Session.Current.BranchId,
+                PaymentMethod=cashier ? "PENDING::Cash" : "Cash",
+                Lines=cart.Select(x => new SaleLineRequestDto { BatchId=x.BatchId, Quantity=x.Quantity }).ToList()
+            });
+            message = cashier ? "Sale sent to cashier." : "Sale completed.";
+            cart.Clear();
+            await LoadAsync();
+        }
+        catch (Exception ex) { message = ex.Message; }
+        finally { busy=false; }
+    }
+}
