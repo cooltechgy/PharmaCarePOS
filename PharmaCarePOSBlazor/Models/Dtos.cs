@@ -53,7 +53,7 @@ public sealed class StockRow
     public decimal SellingPrice { get; set; }
 }
 
-public sealed class CustomerDto
+public class CustomerDto
 {
     public int Id { get; set; }
     public int TenantId { get; set; }
@@ -74,7 +74,7 @@ public sealed class CustomerDto
     public string Notes { get; set; } = "";
 }
 
-public sealed class SupplierDto
+public class SupplierDto
 {
     public int Id { get; set; }
     public int TenantId { get; set; }
