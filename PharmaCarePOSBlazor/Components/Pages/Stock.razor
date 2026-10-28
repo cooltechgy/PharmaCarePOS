@@ -1,0 +1,19 @@
+@page "/stock"
+@inject ApiClient Api
+@inject SessionState Session
+
+<PageTitle>Stock - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Stock Management</h1><p>Current stock by product batch.</p></div></div>
+<div class="toolbar page-card compact"><input class="search-input" @bind="search" @bind:event="oninput" placeholder="Search stock..." /><label class="inline-check"><input type="checkbox" @bind="lowOnly" /> Low stock only</label></div>
+<div class="page-card table-card"><div class="table-wrap"><table>
+<thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Current Stock</th><th>Cost</th><th>Selling</th><th>Status</th></tr></thead>
+<tbody>
+@foreach(var x in Filtered){
+<tr><td><strong>@x.ProductName</strong></td><td>@x.BatchNo</td><td>@x.ExpiryDate.ToString("dd/MM/yyyy")</td><td class="@(x.Quantity<=10?"text-red":"text-green")">@x.Quantity</td><td>@x.PurchasePrice.ToString("C")</td><td>@x.SellingPrice.ToString("C")</td><td><span class="badge @(x.Quantity<=10?"badge-red":"badge-green")">@(x.Quantity<=10?"Low Stock":"In Stock")</span></td></tr>
+}
+</tbody></table></div></div>
+@code{
+private List<StockRow> rows=[];private string search="";private bool lowOnly;
+private IEnumerable<StockRow> Filtered=>rows.Where(x=>(!lowOnly||x.Quantity<=10)&&(string.IsNullOrWhiteSpace(search)||x.ProductName.Contains(search,StringComparison.OrdinalIgnoreCase)||x.BatchNo.Contains(search,StringComparison.OrdinalIgnoreCase)));
+protected override async Task OnInitializedAsync(){if(Session.Current is not null)rows=await Api.StockAsync(Session.Current);}
+}
