@@ -1,0 +1,59 @@
+@page "/dashboard"
+@inject ApiClient Api
+@inject SessionState Session
+
+<PageTitle>Dashboard - PharmaCare POS</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <h1>Dashboard</h1>
+        <p>Overview of today's pharmacy activity.</p>
+    </div>
+    <span class="date-pill">@DateTime.Now.ToString("ddd, dd MMM yyyy")</span>
+</div>
+
+@if (loading)
+{
+    <div class="page-card">Loading dashboard...</div>
+}
+else if (data is not null)
+{
+    <div class="stats-grid">
+        <div class="stat-card green"><span class="stat-icon">$</span><div><small>Total Sales (Today)</small><strong>@data.SalesToday.ToString("C")</strong></div></div>
+        <div class="stat-card blue"><span class="stat-icon">▣</span><div><small>Total Orders</small><strong>@data.SalesCount</strong></div></div>
+        <div class="stat-card red"><span class="stat-icon">!</span><div><small>Low Stock Items</small><strong>@data.LowStock</strong></div></div>
+        <div class="stat-card orange"><span class="stat-icon">⏱</span><div><small>Expiry Soon</small><strong>@data.ExpirySoon</strong></div></div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="page-card">
+            <div class="card-title-row"><h3>Sales Overview</h3><span>Last 7 Days</span></div>
+            <div class="chart-placeholder">
+                <div class="chart-line"></div>
+                <div class="chart-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            </div>
+        </div>
+        <div class="page-card">
+            <h3>System Status</h3>
+            <div class="status-panel">
+                <span class="status-dot"></span>
+                <div><strong>API Connected</strong><p>Blazor is using the existing PharmaCare API and database.</p></div>
+            </div>
+            <hr />
+            <p class="muted">Tenant: @Session.Current?.TenantName</p>
+            <p class="muted">Role: @Session.Current?.Role</p>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardDto? data;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.Current is not null)
+            data = await Api.DashboardAsync(Session.Current);
+        loading = false;
+    }
+}
