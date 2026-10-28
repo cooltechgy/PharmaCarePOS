@@ -1,0 +1,61 @@
+@page "/"
+@layout EmptyLayout
+@inject ApiClient Api
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<PageTitle>PharmaCare POS - Login</PageTitle>
+
+<div class="login-page">
+  <div class="login-shell">
+    <section class="login-brand">
+      <div class="login-logo">✚</div>
+      <h1>PharmaCare POS</h1>
+      <p class="login-subtitle">Pharmacy Management System</p>
+      <div class="login-points">
+        <span>✓ Fast &amp; Reliable</span>
+        <span>✓ Secure &amp; Compliant</span>
+        <span>✓ Easy to Use</span>
+        <span>✓ All-in-One Pharmacy Solution</span>
+      </div>
+    </section>
+    <section class="login-form">
+      <h2>Welcome Back</h2>
+      <p>Sign in to your PharmaCare POS account.</p>
+      <label>Username</label>
+      <input @bind="username" placeholder="Enter username" />
+      <label>Password</label>
+      <input @bind="password" type="password" placeholder="Enter password" />
+      @if (!string.IsNullOrWhiteSpace(error))
+      {
+        <div class="alert alert-danger">@error</div>
+      }
+      <button class="btn btn-primary btn-block" @onclick="LoginAsync" disabled="@busy">@(busy ? "Signing in..." : "Login")</button>
+      <small>Blazor Edition • Existing PharmaCare API</small>
+    </section>
+  </div>
+</div>
+
+@code {
+  private string username = "admin";
+  private string password = "Admin123!";
+  private string error = "";
+  private bool busy;
+
+  private async Task LoginAsync()
+  {
+    busy = true;
+    error = "";
+    try
+    {
+      var session = await Api.LoginAsync(username, password);
+      Session.Set(session);
+      Nav.NavigateTo("/dashboard");
+    }
+    catch
+    {
+      error = "Invalid login or the PharmaCare API is not running.";
+    }
+    finally { busy = false; }
+  }
+}
