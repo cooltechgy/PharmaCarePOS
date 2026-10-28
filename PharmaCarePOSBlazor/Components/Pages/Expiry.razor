@@ -1,0 +1,18 @@
+@page "/expiry"
+@inject ApiClient Api
+@inject SessionState Session
+
+<PageTitle>Expiry Stock - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Expiry Stock</h1><p>Products expiring within the next 90 days.</p></div></div>
+<div class="page-card table-card"><div class="table-wrap"><table>
+<thead><tr><th>Product</th><th>Batch No.</th><th>Expiry Date</th><th>Current Stock</th><th>Status</th></tr></thead>
+<tbody>
+@foreach(var x in rows){
+var days=(x.ExpiryDate.Date-DateTime.Today).Days;
+<tr><td><strong>@x.ProductName</strong></td><td>@x.BatchNo</td><td class="@(days<0?"text-red":"")">@x.ExpiryDate.ToString("dd/MM/yyyy")</td><td>@x.Quantity</td><td><span class="badge @(days<0?"badge-red":"badge-orange")">@(days<0?"Expired":"Expiring Soon")</span></td></tr>
+}
+</tbody></table></div></div>
+@code{
+private List<StockRow> rows=[];
+protected override async Task OnInitializedAsync(){if(Session.Current is not null)rows=(await Api.StockAsync(Session.Current)).Where(x=>x.ExpiryDate<=DateTime.Today.AddDays(90)).OrderBy(x=>x.ExpiryDate).ToList();}
+}
