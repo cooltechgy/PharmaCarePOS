@@ -1,0 +1,18 @@
+@page "/suppliers"
+@inject ApiClient Api
+@inject SessionState Session
+<PageTitle>Suppliers - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Suppliers</h1><p>Manage supplier contact details.</p></div></div>
+<div class="toolbar page-card compact"><button class="btn btn-primary" @onclick="New">+ New Supplier</button><button class="btn btn-light" disabled="@(selected is null)" @onclick="Edit">Edit</button></div>
+@if(showForm){<div class="page-card form-card modal-inline"><div class="form-grid"><label>Name<input @bind="form.Name"/></label><label>Contact Person<input @bind="form.ContactPerson"/></label><label>Phone<input @bind="form.Phone"/></label><label>Email<input @bind="form.Email"/></label></div><div class="form-actions"><button class="btn btn-primary" @onclick="SaveAsync">Save</button><button class="btn btn-light" @onclick="()=>showForm=false">Cancel</button></div></div>}
+<div class="page-card table-card"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Supplier</th><th>Contact</th><th>Phone</th><th>Email</th></tr></thead><tbody>
+@foreach(var x in rows){<tr class="@(selected?.Id==x.Id?"selected":"")" @onclick="()=>selected=x"><td>S@(x.Id.ToString("D3"))</td><td><strong>@x.Name</strong></td><td>@x.ContactPerson</td><td>@x.Phone</td><td>@x.Email</td></tr>}
+</tbody></table></div></div>
+@code{
+private List<SupplierDto> rows=[];private SupplierDto? selected;private SupplierRequest form=new();private int? editId;private bool showForm;
+protected override Task OnInitializedAsync()=>LoadAsync();
+private async Task LoadAsync(){if(Session.Current is not null)rows=await Api.SuppliersAsync(Session.Current.TenantId);}
+private void New(){editId=null;form=new SupplierRequest{TenantId=Session.Current?.TenantId??0};showForm=true;}
+private void Edit(){if(selected is null)return;editId=selected.Id;form=new SupplierRequest{Id=selected.Id,TenantId=selected.TenantId,Name=selected.Name,ContactPerson=selected.ContactPerson,Phone=selected.Phone,Email=selected.Email};showForm=true;}
+private async Task SaveAsync(){await Api.SaveSupplierAsync(form,editId);showForm=false;await LoadAsync();}
+}
