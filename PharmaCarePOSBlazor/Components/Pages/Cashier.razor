@@ -1,0 +1,19 @@
+@page "/cashier"
+@inject ApiClient Api
+@inject SessionState Session
+<PageTitle>Cashier - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Cashier</h1><p>Complete pending POS payments.</p></div><button class="btn btn-light" @onclick="LoadAsync">Refresh</button></div>
+<div class="pos-grid">
+<div class="page-card table-card"><div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Method</th><th>Status</th></tr></thead><tbody>
+@foreach(var x in rows){<tr class="@(selected?.Id==x.Id?"selected":"")" @onclick="()=>selected=x"><td>@x.InvoiceNo</td><td>@x.CustomerName</td><td>@x.Total.ToString("C")</td><td>@x.SuggestedPaymentMethod</td><td><span class="badge badge-orange">@x.PaymentStatus</span></td></tr>}
+</tbody></table></div></div>
+<div class="page-card"><h3>Payment Details</h3><label>Payment Method<select @bind="method"><option>Cash</option><option>Card</option><option>UPI</option><option>Split</option></select></label>
+<div class="payment-total"><small>Total Due</small><strong>@(selected?.Total.ToString("C")??"$0.00")</strong></div>
+<button class="btn btn-success btn-block" disabled="@(selected is null)" @onclick="CompleteAsync">Confirm Payment</button></div>
+</div>
+@code{
+private List<PendingCashierDto> rows=[];private PendingCashierDto? selected;private string method="Cash";
+protected override Task OnInitializedAsync()=>LoadAsync();
+private async Task LoadAsync(){if(Session.Current is not null)rows=await Api.PendingCashierAsync(Session.Current);}
+private async Task CompleteAsync(){if(Session.Current is null||selected is null)return;await Api.CompleteCashierAsync(Session.Current,selected.Id,method);selected=null;await LoadAsync();}
+}
