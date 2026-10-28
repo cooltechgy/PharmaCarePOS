@@ -1,0 +1,57 @@
+@page "/products/edit"
+@page "/products/edit/{Id:int}"
+@inject ApiClient Api
+@inject SessionState Session
+@inject NavigationManager Nav
+
+<PageTitle>Add / Edit Product - PharmaCare POS</PageTitle>
+
+<div class="page-heading"><div><h1>@(Id is null ? "Add Product" : "Edit Product")</h1><p>Product information and pricing.</p></div></div>
+<div class="page-card form-card">
+    <div class="form-grid">
+        <label>Product Name<input @bind="model.Name" /></label>
+        <label>Generic Name<input @bind="model.GenericName" /></label>
+        <label>Strength<input @bind="model.Strength" /></label>
+        <label>Dosage Form<input @bind="model.DosageForm" /></label>
+        <label>Category<input @bind="model.Category" /></label>
+        <label>Brand<input @bind="model.Brand" /></label>
+        <label>Manufacturer<input @bind="model.Manufacturer" /></label>
+        <label>Barcode<input @bind="model.Barcode" /></label>
+        <label>Purchase Price<input type="number" step="0.01" @bind="model.PurchasePrice" /></label>
+        <label>Selling Price<input type="number" step="0.01" @bind="model.SellingPrice" /></label>
+        <label>Pack Size<input @bind="model.PackSize" /></label>
+        <label class="check-label"><input type="checkbox" @bind="model.TrackBatchExpiry" /> Track batch expiry</label>
+    </div>
+    @if(!string.IsNullOrWhiteSpace(message)){<div class="alert">@message</div>}
+    <div class="form-actions">
+        <button class="btn btn-primary" @onclick="SaveAsync">Save Product</button>
+        <button class="btn btn-light" @onclick="() => Nav.NavigateTo("/products")">Cancel</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+    private ProductRequest model=new();
+    private string message="";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if(Session.Current is null) return;
+        model.TenantId=Session.Current.TenantId;
+        if(Id is not null)
+        {
+            var p=(await Api.ProductsAsync(Session.Current.TenantId)).FirstOrDefault(x=>x.Id==Id);
+            if(p is not null) model=new ProductRequest {
+                TenantId=p.TenantId,Name=p.Name,GenericName=p.GenericName,Strength=p.Strength,PackSize=p.PackSize,Category=p.Category,
+                Brand=p.Brand,Barcode=p.Barcode,SellingPrice=p.SellingPrice,PurchasePrice=p.PurchasePrice,TrackBatchExpiry=p.TrackBatchExpiry,
+                RequiresPrescription=p.RequiresPrescription,RxNormId=p.RxNormId,ImageUrl=p.ImageUrl,Manufacturer=p.Manufacturer,DosageForm=p.DosageForm,Notes=p.Notes
+            };
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try { await Api.SaveProductAsync(model,Id); Nav.NavigateTo("/products"); }
+        catch(Exception ex){message=ex.Message;}
+    }
+}
