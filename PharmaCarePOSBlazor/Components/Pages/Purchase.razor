@@ -1,0 +1,40 @@
+@page "/purchase"
+@inject ApiClient Api
+@inject SessionState Session
+
+<PageTitle>Purchase - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Purchase / Receive Stock</h1><p>Add a batch received from a supplier.</p></div></div>
+
+<div class="dashboard-grid">
+    <div class="page-card form-card">
+        <h3>New Purchase</h3>
+        <div class="form-grid one">
+            <label>Product<select @bind="line.ProductId"><option value="0">Select product</option>@foreach(var p in products){<option value="@p.Id">@p.Name</option>}</select></label>
+            <label>Batch Number<input @bind="line.BatchNo" /></label>
+            <label>Expiry Date<input type="date" @bind="line.ExpiryDate" /></label>
+            <label>Quantity<input type="number" step="1" @bind="line.Quantity" /></label>
+            <label>Purchase Price<input type="number" step="0.01" @bind="line.PurchasePrice" /></label>
+            <label>Selling Price<input type="number" step="0.01" @bind="line.SellingPrice" /></label>
+        </div>
+        @if(!string.IsNullOrWhiteSpace(message)){<div class="alert">@message</div>}
+        <button class="btn btn-primary" @onclick="SaveAsync">Receive Stock</button>
+    </div>
+    <div class="page-card">
+        <h3>Purchase Workflow</h3>
+        <p class="muted">This Blazor screen posts directly to the existing <code>/api/purchases</code> endpoint and updates batch stock in SQL Server.</p>
+    </div>
+</div>
+
+@code{
+    private List<ProductDto> products=[];
+    private PurchaseLineRequest line=new();
+    private string message="";
+    protected override async Task OnInitializedAsync(){if(Session.Current is not null)products=await Api.ProductsAsync(Session.Current.TenantId);}
+    private async Task SaveAsync(){
+        if(Session.Current is null)return;
+        try{
+            await Api.SubmitPurchaseAsync(new PurchaseRequest{TenantId=Session.Current.TenantId,BranchId=Session.Current.BranchId,Lines=[line]});
+            message="Stock received successfully."; line=new();
+        }catch(Exception ex){message=ex.Message;}
+    }
+}
