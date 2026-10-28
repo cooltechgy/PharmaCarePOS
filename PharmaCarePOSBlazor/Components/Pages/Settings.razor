@@ -1,0 +1,21 @@
+@page "/settings"
+@inject ApiClient Api
+@inject SessionState Session
+<PageTitle>Settings - PharmaCare POS</PageTitle>
+<div class="page-heading"><div><h1>Settings</h1><p>Tenant-level pharmacy settings.</p></div></div>
+<div class="page-card form-card settings-card">
+<div class="form-grid">
+<label>Pharmacy Name<input @bind="model.PharmacyName"/></label>
+<label>Currency<input @bind="model.Currency"/></label>
+<label>Invoice Prefix<input @bind="model.InvoicePrefix"/></label>
+<label>Expiry Alert Days<input type="number" @bind="model.ExpiryAlertDays"/></label>
+<label class="wide">Address<input @bind="model.Address"/></label>
+</div>
+@if(!string.IsNullOrWhiteSpace(message)){<div class="alert">@message</div>}
+<button class="btn btn-primary" @onclick="SaveAsync">Save Settings</button>
+</div>
+@code{
+private SettingsRequest model=new();private string message="";
+protected override async Task OnInitializedAsync(){if(Session.Current is null)return;var x=await Api.SettingsAsync(Session.Current.TenantId);if(x is not null)model=new SettingsRequest{TenantId=x.TenantId,PharmacyName=x.PharmacyName,Address=x.Address,Currency=x.Currency,InvoicePrefix=x.InvoicePrefix,ExpiryAlertDays=x.ExpiryAlertDays};else model.TenantId=Session.Current.TenantId;}
+private async Task SaveAsync(){await Api.SaveSettingsAsync(model);message="Settings saved.";}
+}
