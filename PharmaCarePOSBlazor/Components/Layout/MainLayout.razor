@@ -1,0 +1,77 @@
+@inherits LayoutComponentBase
+@inject SessionState Session
+@inject NavigationManager Nav
+
+@if (Session.Current is null)
+{
+    <div class="auth-guard">
+        <div class="page-card">
+            <h2>Session required</h2>
+            <p>Please sign in to continue.</p>
+            <button class="btn btn-primary" @onclick="GoLogin">Go to Login</button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">✚</div>
+                <div>
+                    <strong>PharmaCare</strong>
+                    <span>POS</span>
+                </div>
+            </div>
+
+            <div class="nav-label">WORKSPACE</div>
+            <NavLink class="nav-item" href="/dashboard">⌂ <span>Dashboard</span></NavLink>
+            <NavLink class="nav-item" href="/pos">🛒 <span>POS Sales</span></NavLink>
+            <NavLink class="nav-item" href="/cashier">💵 <span>Cashier</span></NavLink>
+
+            <div class="nav-label">INVENTORY</div>
+            <NavLink class="nav-item" href="/products">💊 <span>Products</span></NavLink>
+            <NavLink class="nav-item" href="/purchase">▣ <span>Purchase</span></NavLink>
+            <NavLink class="nav-item" href="/stock">▤ <span>Stock</span></NavLink>
+            <NavLink class="nav-item" href="/expiry">⏰ <span>Expiry Stock</span></NavLink>
+            <NavLink class="nav-item" href="/customers">👥 <span>Customers</span></NavLink>
+            <NavLink class="nav-item" href="/suppliers">🚚 <span>Suppliers</span></NavLink>
+
+            <div class="nav-label">ADMIN</div>
+            <NavLink class="nav-item" href="/reports">📊 <span>Reports</span></NavLink>
+            <NavLink class="nav-item" href="/users">🛡 <span>Users &amp; Roles</span></NavLink>
+            <NavLink class="nav-item" href="/settings">⚙ <span>Settings</span></NavLink>
+
+            <div class="sidebar-footer">
+                <strong>PharmaCare POS</strong>
+                <span>Blazor • API connected</span>
+            </div>
+        </aside>
+
+        <section class="workspace">
+            <header class="topbar">
+                <div class="top-search">⌕ <span>Search products, customers, or invoices...</span></div>
+                <div class="top-user">
+                    <span class="status-dot"></span>
+                    <div>
+                        <strong>@Session.Current.DisplayName</strong>
+                        <small>@Session.Current.Role</small>
+                    </div>
+                    <button class="btn btn-light btn-sm" @onclick="Logout">Logout</button>
+                </div>
+            </header>
+            <main class="content">
+                @Body
+            </main>
+        </section>
+    </div>
+}
+
+@code {
+    private void GoLogin() => Nav.NavigateTo("/");
+    private void Logout()
+    {
+        Session.Clear();
+        Nav.NavigateTo("/");
+    }
+}
