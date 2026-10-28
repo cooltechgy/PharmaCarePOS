@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmaCarePOS", "PharmaCare
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmaCarePOS.Desktop", "PharmaCarePOS.Desktop\\PharmaCarePOS.Desktop.csproj", "{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmaCarePOSBlazor", "PharmaCarePOSBlazor\\PharmaCarePOSBlazor.csproj", "{B14A9A4A-5E2C-4D70-93C0-26D875E47A91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,5 +22,9 @@ Global
 		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8C773E1D-0D8B-4B49-AD7C-4D601F1B822A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B14A9A4A-5E2C-4D70-93C0-26D875E47A91}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B14A9A4A-5E2C-4D70-93C0-26D875E47A91}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B14A9A4A-5E2C-4D70-93C0-26D875E47A91}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B14A9A4A-5E2C-4D70-93C0-26D875E47A91}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
